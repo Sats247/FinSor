@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBMS — Command Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Hind:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<div class="app-shell">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <img src="/svg/dbms-logo.svg" style="width:32px;height:32px" alt="DBMS">
+      <div>
+        <div class="sidebar-brand-text">DBMS</div>
+        <div class="sidebar-brand-sub">Border Intelligence Platform</div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-section-label" data-i18n="nav.section_navigation">Navigation</div>
+      <a href="/pages/dashboard.html" class="nav-item active">
+        <img src="/svg/icons/dashboard.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span data-i18n="nav.dashboard">Dashboard</span>
+      </a>
+      <div class="sidebar-section-label" data-i18n="nav.border_patrol">Border Patrol</div>
+      <a href="/pages/border-patrol/bsf.html" class="nav-item">
+        <img src="/svg/icons/border-patrol.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span>BSF — Pakistan &amp; Bangladesh</span>
+      </a>
+      <a href="/pages/border-patrol/itbp.html" class="nav-item">
+        <img src="/svg/icons/border-patrol.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span>ITBP — China &amp; Tibet</span>
+      </a>
+      <a href="/pages/border-patrol/ssb.html" class="nav-item">
+        <img src="/svg/icons/border-patrol.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span>SSB — Nepal &amp; Bhutan</span>
+      </a>
+      <a href="/pages/border-patrol/assam-rifles.html" class="nav-item">
+        <img src="/svg/icons/border-patrol.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span>Assam Rifles — Myanmar</span>
+      </a>
+      <a href="/pages/border-patrol/cisf.html" class="nav-item">
+        <img src="/svg/icons/border-patrol.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span>CISF — Airports &amp; Seaports</span>
+      </a>
+      <hr class="sidebar-divider">
+      <a href="/pages/sea-marshall.html" class="nav-item">
+        <img src="/svg/icons/ship.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span data-i18n="nav.sea_marshall">Sea Marshall</span>
+      </a>
+      <a href="/pages/immigration.html" class="nav-item">
+        <img src="/svg/icons/passport.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span data-i18n="nav.immigration">Immigration Verification</span>
+      </a>
+      <hr class="sidebar-divider">
+      <a href="/pages/ngo-portal.html" class="nav-item">
+        <img src="/svg/icons/ngo.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span data-i18n="nav.ngo_portal">NGO Portal</span>
+      </a>
+      <a href="/pages/refugee-portal.html" class="nav-item">
+        <img src="/svg/icons/refugee.svg" style="width:16px;height:16px;filter:invert(1)" alt=""><span data-i18n="nav.refugee_portal">Refugee Portal</span>
+      </a>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="lang-pills">
+        <button class="lang-pill active" data-lang="en">EN</button>
+        <button class="lang-pill" data-lang="hi">हिं</button>
+      </div>
+      <div class="sidebar-user" id="sidebar-user-info">Loading...</div>
+      <button class="btn btn-secondary" id="logout-btn" style="width:100%;font-size:11px">
+        <img src="/svg/icons/logout.svg" style="width:13px;height:13px" alt=""> Logout
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="top-header">
+      <div class="breadcrumb">Dashboard › <strong data-i18n="dashboard.title">Command Overview</strong></div>
+      <div class="header-right">
+        <div class="live-clock" id="live-clock">—</div>
+        <div class="system-badge">System Online</div>
+      </div>
+    </header>
+
+    <main class="content-area">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" data-i18n="dashboard.title">Command Overview</h1>
+          <p class="page-subtitle" data-i18n="dashboard.subtitle">Real-time border intelligence feed — India's comprehensive monitoring platform</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="loadKPIs();showToast('Refreshed','info')">↻ Refresh</button>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="border-left-color:var(--color-primary)">
+          <div class="kpi-label" data-i18n="dashboard.kpi_volume">Total Transit Volume</div>
+          <div class="kpi-value" id="kpi-volume">—</div>
+          <div class="kpi-delta" data-i18n="dashboard.kpi_volume_sub">Active entity records</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:var(--color-alert)">
+          <div class="kpi-label" data-i18n="dashboard.kpi_flags">Active Security Flags</div>
+          <div class="kpi-value text-danger" id="kpi-flags">—</div>
+          <div class="kpi-delta down" data-i18n="dashboard.kpi_flags_sub">⚠ Requires attention</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:var(--color-warning)">
+          <div class="kpi-label">Registered Refugees</div>
+          <div class="kpi-value" id="kpi-refugees">—</div>
+          <div class="kpi-delta">Total registered across all forces</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:var(--color-success)">
+          <div class="kpi-label" data-i18n="dashboard.kpi_incidents">Open Incidents</div>
+          <div class="kpi-value" id="kpi-incidents">—</div>
+          <div class="kpi-delta" data-i18n="dashboard.kpi_incidents_sub">System-detected events</div>
+        </div>
+      </div>
+
+      <!-- Live Map -->
+      <div class="map-card">
+        <div class="map-card-header">
+          <span class="map-card-title" data-i18n="dashboard.map_title">Live Border Activity Map</span>
+          <span class="live-indicator" data-i18n="dashboard.map_live">● LIVE</span>
+        </div>
+        <div id="main-map"></div>
+        <div class="map-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--marker-airport)"></div><span data-i18n="dashboard.legend_airport">Airport</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--marker-seaport)"></div><span data-i18n="dashboard.legend_seaport">Seaport</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--marker-land)"></div><span data-i18n="dashboard.legend_land">Land Border</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--marker-camp)"></div><span data-i18n="dashboard.legend_camp">Refugee Camp</span></div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title" data-i18n="dashboard.chart_entity_types">Entity Type Distribution</div>
+          <div class="chart-canvas-wrap"><canvas id="chart-types"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" data-i18n="dashboard.chart_entry_points">Top Entry Points by Volume</div>
+          <div class="chart-canvas-wrap"><canvas id="chart-entry-points"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" data-i18n="dashboard.chart_trend">Security Flags — 7-Day Trend</div>
+          <div class="chart-canvas-wrap"><canvas id="chart-trend"></canvas></div>
+        </div>
+      </div>
+
+      <!-- ── Refugee & NGO Assignment Section ───────────────── -->
+      <div class="section-divider" style="margin:32px 0 16px;font-size:13px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.07em">Refugee Management</div>
+
+      <div class="tab-bar" id="refugee-tab-bar">
+        <div class="tab-item active" data-tab="dash-tab-refugees">Registered Refugees</div>
+        <div class="tab-item" data-tab="dash-tab-ngo">NGO Assignments</div>
+      </div>
+
+      <!-- Tab: Registered Refugees -->
+      <div class="tab-content active" id="dash-tab-refugees">
+        <div class="filter-bar">
+          <div style="font-size:13px;color:var(--color-text-muted)">All refugees registered across all border forces</div>
+          <button class="btn btn-secondary btn-sm" onclick="loadDashboardRefugees()">↻ Refresh</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr>
+              <th>Provisional ID</th>
+              <th>Name</th>
+              <th>Nationality</th>
+              <th>Force</th>
+              <th>Registration Date</th>
+              <th>Camp</th>
+              <th>Assigned NGO</th>
+              <th>Status</th>
+            </tr></thead>
+            <tbody id="dash-refugee-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:20px;color:var(--color-text-muted)">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: NGO Assignments -->
+      <div class="tab-content" id="dash-tab-ngo">
+        <div class="filter-bar">
+          <div style="font-size:13px;color:var(--color-text-muted)">Assign or reassign any refugee to an NGO</div>
+          <button class="btn btn-secondary btn-sm" onclick="loadNgoAssignmentsTab()">↻ Refresh</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr>
+              <th>Provisional ID</th>
+              <th>Name</th>
+              <th>Nationality</th>
+              <th>Force</th>
+              <th>Current NGO</th>
+              <th style="min-width:260px">Assign / Reassign NGO</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="dash-ngo-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--color-text-muted)">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<div id="toast-container"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/js/config.js"></script>
+<script src="/js/translation.js"></script>
+<script src="/js/ui-components.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/map.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

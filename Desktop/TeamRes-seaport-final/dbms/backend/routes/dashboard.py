@@ -151,9 +151,221 @@ def update_ngo_assignment(reg_id):
             UPDATE ngo_assignments SET ngo_name=?, ngo_id=?
             WHERE refugee_registration_id=?
         """, (ngo_name, ngo_id, reg_id))
+
+        # Add to timeline
+        prov = db.execute("SELECT provisional_id FROM refugee_registrations WHERE id=?", (reg_id,)).fetchone()
+        if prov:
+            db.execute("""
+                INSERT INTO refugee_status_log (provisional_id, stage, updated_by)
+                VALUES (?, 'assigned_to_ngo', 'Dashboard Admin')
+            """, (prov['provisional_id'],))
+
         db.commit()
     except Exception as e:
         return api_error(str(e), 500)
     finally:
         db.close()
     return api_response(message=f'Refugee reassigned to {ngo_name}')
+
+
+# ── Alerts ────────────────────────────────────────────────────────
+@dashboard_bp.route('/alerts', methods=['GET'])
+def get_alerts():
+    """
+    Return all alerts ordered newest-first.
+    ?unread=true  — filter to unread only
+    ?limit=N      — max items (default 100)
+    """
+    unread_only = request.args.get('unread', '').lower() == 'true'
+    limit       = min(int(request.args.get('limit', 100)), 500)
+
+    db = get_db()
+    try:
+        if unread_only:
+            rows = db.execute(
+                "SELECT * FROM alerts WHERE read=0 ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+        unread_count = db.execute(
+            "SELECT COUNT(*) as c FROM alerts WHERE read=0"
+        ).fetchone()['c']
+    finally:
+        db.close()
+
+    return api_response(data={
+        'items':        [dict(r) for r in rows],
+        'unread_count': unread_count
+    })
+
+
+@dashboard_bp.route('/alerts/read/<int:alert_id>', methods=['POST'])
+def mark_alert_read(alert_id):
+    """Mark a single alert as read."""
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE alerts SET read=1 WHERE id=?", (alert_id,)
+        )
+        db.commit()
+    except Exception as e:
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+    return api_response(message=f'Alert {alert_id} marked as read')
+
+
+@dashboard_bp.route('/alerts/read-all', methods=['POST'])
+def mark_all_alerts_read():
+    """Mark all alerts as read at once (convenience endpoint)."""
+    db = get_db()
+    try:
+        db.execute("UPDATE alerts SET read=1 WHERE read=0")
+        db.commit()
+    except Exception as e:
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+    return api_response(message='All alerts marked as read')
+
+
+@dashboard_bp.route('/alerts', methods=['POST'])
+def create_alert():
+    """
+    Create a new alert (used by other backend modules or for testing).
+    Body: { type, message, severity, triggered_by }
+    """
+    data = request.get_json(silent=True) or {}
+    if not data.get('message'):
+        return api_error('message is required')
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?,?,?,?)",
+            (
+                data.get('type', 'system'),
+                data['message'],
+                data.get('severity', 'info'),
+                data.get('triggered_by', 'system'),
+            )
+        )
+        db.commit()
+    except Exception as e:
+        return api_error(str(e), 500)
+        db.close()
+    return api_response(message='Alert created', status=201)
+
+
+@dashboard_bp.route('/stats/units', methods=['GET'])
+def get_unit_stats():
+    units = ['BSF', 'CISF', 'ITBP', 'SSB', 'Assam Rifles']
+    db = get_db()
+    stats = []
+    try:
+        for unit in units:
+            # Refugees registered by unit (force)
+            refs = db.execute(
+                "SELECT COUNT(*) as c FROM refugee_registrations WHERE force=?",
+                (unit,)
+            ).fetchone()['c']
+            
+            # Vessels checked
+            # In SeaPort, CISF operates at seaports. We will attribute vessel checks to CISF.
+            # Otherwise 0.
+            vessels = 0
+            if unit == 'CISF':
+                vessels = db.execute("SELECT COUNT(*) as c FROM vessels").fetchone()['c']
+                
+            # Flagged incidents
+            incs = db.execute(
+                "SELECT COUNT(*) as c FROM incidents WHERE reported_by LIKE ?",
+                (f"%{unit}%",)
+            ).fetchone()['c']
+            
+            stats.append({
+                'unit_name': unit,
+                'total_refugees_registered': refs,
+                'total_vessels_checked': vessels,
+                'flagged_incidents': incs
+            })
+    except Exception as e:
+        db.close()
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+        
+    return api_response(data=stats)
+
+
+# ── NGO Management ────────────────────────────────────────────────
+@dashboard_bp.route('/ngos/all', methods=['GET'])
+def get_all_ngos():
+    db = get_db()
+    try:
+        rows = db.execute("""
+            SELECT n.*, 
+                   (SELECT COUNT(*) FROM refugee_registrations rr WHERE rr.assigned_ngo = n.name) as real_current_count
+            FROM ngos n
+            ORDER BY n.created_at DESC
+        """).fetchall()
+        
+        result = []
+        for r in rows:
+            d = dict(r)
+            d['current_count'] = d['real_current_count']
+            result.append(d)
+    finally:
+        db.close()
+    return api_response(data=result)
+
+@dashboard_bp.route('/ngos', methods=['POST'])
+def create_ngo():
+    data = request.get_json(silent=True) or {}
+    if not data.get('name'):
+        return api_error('NGO name is required')
+    db = get_db()
+    try:
+        db.execute("""
+            INSERT INTO ngos (name, focus_area, contact_person, contact_email, max_capacity, lat, lng, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+        """, (data.get('name'), data.get('focus_area'), data.get('contact_person'), data.get('contact_email'), 
+              int(data.get('max_capacity', 0) or 0), data.get('lat'), data.get('lng')))
+        db.commit()
+    except Exception as e:
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+    return api_response(message="NGO created successfully", status=201)
+
+@dashboard_bp.route('/ngos/<int:ngo_id>/approve', methods=['POST'])
+def approve_ngo(ngo_id):
+    db = get_db()
+    try:
+        db.execute("UPDATE ngos SET status='approved' WHERE id=?", (ngo_id,))
+        ngo = db.execute("SELECT * FROM ngos WHERE id=?", (ngo_id,)).fetchone()
+        if ngo and ngo['contact_email']:
+            pwd = ngo['name'].lower().replace(' ', '_')
+            db.execute("""
+                INSERT OR IGNORE INTO users (name, email, password, role, ngo_id)
+                VALUES (?, ?, ?, 'ngo_admin', ?)
+            """, (f"{ngo['name']} Admin", ngo['contact_email'], pwd, ngo_id))
+        db.commit()
+    except Exception as e:
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+    return api_response(message="NGO approved")
+
+@dashboard_bp.route('/ngos/<int:ngo_id>/deactivate', methods=['POST'])
+def deactivate_ngo(ngo_id):
+    db = get_db()
+    try:
+        db.execute("UPDATE ngos SET status='deactivated' WHERE id=?", (ngo_id,))
+        db.commit()
+    finally:
+        db.close()
+    return api_response(message="NGO deactivated")

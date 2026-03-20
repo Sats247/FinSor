@@ -32,7 +32,18 @@
         <button class="lang-pill active" data-lang="en">English</button>
         <button class="lang-pill" data-lang="hi">हिन्दी</button>
       </div>
-      <div class="sidebar-user" id="sidebar-user-info">Refugee Portal</div>
+      <div class="sidebar-user" id="sidebar-user-info" style="display:flex; flex-direction:column; gap:8px">
+        <div>Refugee Portal</div>
+        <select id="lang-pref-selector" class="form-input" style="width:100%;font-size:12px;padding:4px" onchange="updateLanguagePreference()">
+          <option value="en">English (en)</option>
+          <option value="hi">हिन्दी (hi)</option>
+          <option value="bn">বাংলা (bn)</option>
+          <option value="ta">தமிழ் (ta)</option>
+          <option value="te">తెలుగు (te)</option>
+          <option value="mr">मराठी (mr)</option>
+          <option value="gu">ગુજરાતી (gu)</option>
+        </select>
+      </div>
       <a href="/index.html" class="btn btn-secondary" style="width:100%;font-size:11px;text-align:center;display:block;box-sizing:border-box">← Return to Login</a>
     </div>
   </nav>
@@ -67,6 +78,14 @@
         </button>
         <div style="margin-top:12px;font-size:11px;color:var(--color-text-muted)">
           If you do not have your Provisional ID, please contact the officer who registered you or call UNHCR: +91-11-4653-7444
+        </div>
+      </div>
+
+      <!-- Status Timeline -->
+      <div class="timeline-container" id="status-timeline" style="display:none;background:var(--color-surface);border:1px solid var(--color-border);border-radius:12px;padding:24px;margin-bottom:24px">
+        <div style="font-weight:600;margin-bottom:16px" data-i18n="refugee.timeline">Case Progress</div>
+        <div class="timeline-nodes" id="timeline-nodes" style="display:flex;justify-content:space-between;align-items:flex-start;position:relative">
+          <!-- injected via JS -->
         </div>
       </div>
 
@@ -115,6 +134,39 @@
           </div>
         </div>
       </div>
+
+      <!-- Appeals & Requests Section -->
+      <div class="refugee-status-card" id="refugee-appeals-card" style="display:none;margin-top:24px;">
+        <div class="status-card-header" style="color:var(--color-primary);background:var(--color-primary-tint);border-color:var(--color-border)"><span data-i18n="refugee.appeals">Submit Request / Appeal</span></div>
+        <div class="status-card-body">
+          <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">If you have a medical issue, need to change your NGO assignment, or want to report a problem, submit a request here.</p>
+          <form id="appeal-form" onsubmit="submitAppeal(event)">
+            <div style="margin-bottom:12px">
+              <label class="form-label">Request Type</label>
+              <select id="appeal-type" class="form-input" required>
+                <option value="" disabled selected>Select a type...</option>
+                <option value="Medical Help">Medical Help</option>
+                <option value="Change NGO">Change NGO</option>
+                <option value="Report Issue">Report Issue</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div style="margin-bottom:12px">
+              <label class="form-label">Description</label>
+              <textarea id="appeal-desc" class="form-input" rows="3" placeholder="Please describe your request..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btn-submit-appeal">Submit Request</button>
+          </form>
+
+          <hr style="border:none;border-top:1px solid var(--color-border);margin:24px 0">
+          
+          <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--color-text-primary)">Past Requests</h4>
+          <div id="appeals-list">
+            <p style="font-size:13px;color:var(--color-text-muted)">No requests submitted yet.</p>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>

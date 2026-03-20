@@ -115,6 +115,12 @@ async function initiateScan() {
   });
 
   if (res.success) {
+    if (res.data.overall_status === 'Flagged' && res.data.entity && res.data.entity.id) {
+       // Automatically flag for investigation upon scan mismatch
+       apiFetch(`/api/immigration/travelers/${res.data.entity.id}/flag-investigation`, { method: 'POST' }).then(() => {
+           showToast('Automated mismatch detected. Flagged for investigation.', 'warning');
+       });
+    }
     renderCertificate(res.data);
     if (statusEl) statusEl.textContent = '✓ Verification complete.';
   } else {
@@ -467,6 +473,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (content) content.classList.add('active');
       if (tab.dataset.tab === 'tab-travelers') {
         loadTravelers();
+      } else if (tab.dataset.tab === 'tab-visa-expiry') {
+        loadVisaExpiryQueue();
+      } else if (tab.dataset.tab === 'tab-investigation') {
+        loadInvestigationQueue();
       }
     });
   });
@@ -482,3 +492,128 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modal overlay click-outside-to-close
   document.getElementById('traveler-modal')?.addEventListener('click', closeTravelerModal);
 });
+
+// ── Visa Expiry ───────────────────────────────────────────────────
+window.saveExpiryThreshold = async function() {
+  const btn = event.target;
+  const days = parseInt(document.getElementById('visa-warning-days').value) || 30;
+  btn.disabled = true; btn.textContent = 'Saving...';
+  
+  const res = await apiFetch('/api/immigration/settings/expiry-threshold', {
+    method: 'PUT',
+    body: { days }
+  });
+  
+  btn.disabled = false; btn.textContent = 'Save Threshold';
+  if (res.success) {
+    showToast('Threshold saved', 'success');
+    loadVisaExpiryQueue();
+  } else {
+    showToast('Failed to save threshold', 'error');
+  }
+}
+
+window.loadVisaExpiryQueue = async function() {
+  const containerExpired = document.getElementById('list-expired');
+  const containerExpiring = document.getElementById('list-expiring');
+  if (!containerExpired || !containerExpiring) return;
+  
+  const res = await apiFetch('/api/immigration/travelers/expiring');
+  if (!res.success) return;
+  
+  const { expired, expiring_soon, threshold } = res.data;
+  document.getElementById('visa-warning-days').value = threshold;
+  document.getElementById('count-expired').textContent = expired.length;
+  document.getElementById('count-expiring').textContent = expiring_soon.length;
+  
+  function renderCard(p, isExpired) {
+    let daysStr = isExpired ? `Expired ${Math.abs(p.days_remaining)} days ago` : `Expires in ${p.days_remaining} days`;
+    let color = isExpired ? 'var(--color-alert)' : 'var(--color-warning)';
+    return `
+      <div style="padding:12px;border:1px solid var(--color-border);border-left:4px solid ${color};border-radius:6px;background:var(--color-surface)">
+        <div style="font-weight:600;font-size:14px">${p.name}</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px">Passport / Nationality: ${p.nationality || 'Unknown'}</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Expiry Date: <strong>${p.visa_expiry_date || 'N/A'}</strong></div>
+        <div style="margin-top:8px;font-size:12px;color:${color};font-weight:600">${daysStr}</div>
+      </div>
+    `;
+  }
+  
+  containerExpired.innerHTML = expired.length ? expired.map(p => renderCard(p, true)).join('') : '<p class="text-muted text-sm">No expired visas found.</p>';
+  containerExpiring.innerHTML = expiring_soon.length ? expiring_soon.map(p => renderCard(p, false)).join('') : '<p class="text-muted text-sm">No visas expiring soon.</p>';
+}
+
+// ── Investigations Queue ───────────────────────────────────────────
+window.loadInvestigationQueue = async function() {
+  const container = document.getElementById('investigation-queue');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--color-text-muted);font-size:13px;grid-column:1/-1">Loading queue...</p>';
+  
+  const res = await apiFetch('/api/immigration/travelers/under-investigation');
+  if (!res.success) return;
+  
+  const items = res.data;
+  if (!items.length) {
+    container.innerHTML = '<p style="color:var(--color-text-muted);font-size:13px;grid-column:1/-1">No travellers under investigation.</p>';
+    return;
+  }
+  
+  container.innerHTML = items.map(p => `
+    <div style="border:1px solid var(--color-border);border-left:4px solid var(--color-warning);border-radius:8px;padding:16px;background:var(--color-surface)" id="inv-card-${p.id}">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        ${p.passport_photo ? `<img src="${p.passport_photo}" style="width:50px;height:50px;border-radius:25px;object-fit:cover">` : `<div style="width:50px;height:50px;border-radius:25px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:20px">👤</div>`}
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:15px">${p.name}</div>
+          <div style="font-size:12px;color:var(--color-text-muted)">${p.nationality || 'Unknown'}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:8px;background:var(--color-surface-hover);border-radius:4px;font-size:12px;color:var(--color-text-secondary)">
+        <strong>Flagged Date:</strong> ${formatDateTime(p.updated_at || new Date().toISOString())}<br>
+        <strong>Notes:</strong> ${p.investigation_notes || 'Auto-flag mismatch / Needs review'}
+      </div>
+      
+      <div style="margin-top:12px">
+        <label class="form-label" style="font-size:11px">Officer Notes / Action</label>
+        <textarea id="inv-notes-${p.id}" class="form-input" rows="2" style="font-size:12px;padding:6px;margin-bottom:8px" placeholder="Enter resolution notes..."></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" style="flex:1;background:var(--color-alert)" onclick="confirmBlacklist('${p.id}')">Confirm Blacklist</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="clearInvestigationFlag('${p.id}')">Clear Flag</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.confirmBlacklist = async function(id) {
+  const notes = document.getElementById(`inv-notes-${id}`)?.value || '';
+  if (!confirm('Are you sure you want to officially blacklist this traveller?')) return;
+  
+  const officerId = SESSION?.user_id || 'Officer';
+  const res = await apiFetch(`/api/immigration/travelers/${id}/confirm-blacklist`, {
+    method: 'POST',
+    body: { officer_id: officerId, notes }
+  });
+  
+  if (res.success) {
+    showToast('Traveller blacklisted.', 'success');
+    document.getElementById(`inv-card-${id}`)?.remove();
+  } else {
+    showToast('Error: ' + res.message, 'error');
+  }
+}
+
+window.clearInvestigationFlag = async function(id) {
+  const notes = document.getElementById(`inv-notes-${id}`)?.value || '';
+  const res = await apiFetch(`/api/immigration/travelers/${id}/clear-flag`, {
+    method: 'POST',
+    body: { notes }
+  });
+  
+  if (res.success) {
+    showToast('Investigation flag cleared.', 'info');
+    document.getElementById(`inv-card-${id}`)?.remove();
+  } else {
+    showToast('Error: ' + res.message, 'error');
+  }
+}
+

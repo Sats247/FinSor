@@ -67,6 +67,11 @@ def get_vessel(imo):
             vessel['status'] = str(override['status'])  # pyre-ignore[6]
         if not vessel.get('movement_status'):
             vessel['movement_status'] = 'APPROACHING'  # pyre-ignore[6]
+            
+        # Add clearance defaults if missing from JSON vessels
+        if 'health_clearance' not in vessel:
+            vessel['health_clearance'] = 0
+            vessel['customs_clearance'] = 0
     finally:
         db.close()
     return api_response(data=vessel)
@@ -364,5 +369,98 @@ def set_movement_status():
         data={'imo': imo, 'movement_status': movement},
         message=f'Vessel IMO {imo} movement status updated to {movement}.'
     )
+
+
+@sea_marshall_bp.route('/vessels/<imo>/health-clearance', methods=['POST'])
+def health_clearance(imo):
+    data = request.get_json(silent=True) or {}
+    officer_id = data.get('officer_id', 'Unknown Officer')
+    granted = int(bool(data.get('granted', False)))
+    notes = data.get('notes', '')
+
+    db = get_db()
+    try:
+        # Update vessel
+        db.execute("""
+            UPDATE vessels
+            SET health_clearance=?, health_clearance_by=?, health_clearance_at=datetime('now')
+            WHERE imo=?
+        """, (granted, officer_id, imo))
+        
+        # Write to log
+        db.execute("""
+            INSERT INTO vessel_clearance_log (vessel_id, clearance_type, granted, officer_id, notes)
+            VALUES (?, 'health', ?, ?, ?)
+        """, (imo, granted, officer_id, notes))
+        
+        # Alert if denied
+        if not granted:
+            db.execute(
+                "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+                ('health_clearance_denied', f"Vessel {imo} denied health clearance by {officer_id}.", 'critical', officer_id)
+            )
+        db.commit()
+    except Exception as e:
+        db.close()
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+        
+    status_str = "granted" if granted else "denied"
+    return api_response(message=f"Health clearance {status_str} for vessel {imo}")
+
+
+@sea_marshall_bp.route('/vessels/<imo>/customs-clearance', methods=['POST'])
+def customs_clearance(imo):
+    data = request.get_json(silent=True) or {}
+    officer_id = data.get('officer_id', 'Unknown Officer')
+    granted = int(bool(data.get('granted', False)))
+    notes = data.get('notes', '')
+
+    db = get_db()
+    try:
+        # Update vessel
+        db.execute("""
+            UPDATE vessels
+            SET customs_clearance=?, customs_clearance_by=?, customs_clearance_at=datetime('now')
+            WHERE imo=?
+        """, (granted, officer_id, imo))
+        
+        # Write to log
+        db.execute("""
+            INSERT INTO vessel_clearance_log (vessel_id, clearance_type, granted, officer_id, notes)
+            VALUES (?, 'customs', ?, ?, ?)
+        """, (imo, granted, officer_id, notes))
+        
+        # Alert if denied
+        if not granted:
+            db.execute(
+                "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+                ('customs_clearance_denied', f"Vessel {imo} denied customs clearance by {officer_id}.", 'critical', officer_id)
+            )
+        db.commit()
+    except Exception as e:
+        db.close()
+        return api_error(str(e), 500)
+    finally:
+        db.close()
+        
+    status_str = "granted" if granted else "denied"
+    return api_response(message=f"Customs clearance {status_str} for vessel {imo}")
+
+
+@sea_marshall_bp.route('/vessels/<imo>/clearance-log', methods=['GET'])
+def get_clearance_log(imo):
+    db = get_db()
+    try:
+        rows = db.execute("""
+            SELECT id, clearance_type, granted, officer_id, notes, timestamp
+            FROM vessel_clearance_log
+            WHERE vessel_id = ?
+            ORDER BY timestamp DESC
+        """, (imo,)).fetchall()
+        return api_response(data=[dict(r) for r in rows])
+    finally:
+        db.close()
 
 

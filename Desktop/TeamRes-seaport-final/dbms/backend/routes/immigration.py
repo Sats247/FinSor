@@ -2,6 +2,7 @@ import os, random, string
 from flask import Blueprint, request, send_from_directory
 from database import get_db, row_to_dict, rows_to_list, api_response, api_error
 from werkzeug.utils import secure_filename
+from datetime import datetime, timezone
 
 immigration_bp = Blueprint('immigration', __name__)
 
@@ -153,9 +154,9 @@ def add_traveler():
         db.execute("""
             INSERT INTO entities
               (id, name, passport_no, nationality, type, entry_point, status,
-               risk_score, is_blacklist, dob, gender, visit_reason, visa_status,
+               risk_score, is_blacklist, dob, gender, visit_reason, visa_status, visa_expiry_date,
                created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
         """, (
             entity_id, data['name'], passport_no, data['nationality'],
             'Traveler',
@@ -167,6 +168,7 @@ def add_traveler():
             data.get('gender', ''),
             data.get('visit_reason', ''),
             data.get('visa_status', 'None'),
+            data.get('visa_expiry_date', ''),
         ))
         db.commit()
     except Exception as e:
@@ -184,7 +186,7 @@ def update_traveler(entity_id):
     data = request.get_json(silent=True) or {}
     allowed = ['name', 'passport_no', 'nationality', 'gender', 'dob',
                'entry_point', 'visit_reason', 'status', 'visa_status',
-               'is_blacklist', 'blacklist_reason', 'risk_score']
+               'is_blacklist', 'blacklist_reason', 'risk_score', 'visa_expiry_date']
 
     # Map 'blacklisted' convenience field
     if 'blacklisted' in data:
@@ -289,3 +291,160 @@ def grant_entry():
         db.close()
 
     return api_response(message=f'Entry granted for passport {passport_no}')
+
+
+@immigration_bp.route('/settings/expiry-threshold', methods=['PUT'])
+def set_expiry_threshold():
+    data = request.get_json(silent=True) or {}
+    days = data.get('days', 30)
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('expiry_warning_days', ?) ON CONFLICT(key) DO UPDATE SET value=?",
+            (str(days), str(days))
+        )
+        db.commit()
+        return api_response(message='Expiry threshold updated')
+    finally:
+        db.close()
+
+
+@immigration_bp.route('/travelers/expiring', methods=['GET'])
+def get_expiring_travelers():
+    db = get_db()
+    try:
+        # Get threshold
+        setting = db.execute("SELECT value FROM app_settings WHERE key='expiry_warning_days'").fetchone()
+        warning_days = int(setting['value']) if setting else 30
+        
+        # SQLite date calculations
+        # Return all travelers that have a visa_expiry_date (and are not already blacklisted/verified)
+        rows = db.execute("""
+            SELECT id as traveller_id, name, nationality, visa_expiry_date,
+                   CAST(julianday(visa_expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_remaining
+            FROM entities
+            WHERE type='Traveler' AND visa_expiry_date IS NOT NULL AND visa_expiry_date != ''
+        """).fetchall()
+        
+        expired = []
+        expiring_soon = []
+        
+        for r in rows:
+            d = dict(r)
+            d['id'] = d.pop('traveller_id') # To match prompt requirement
+            days = d['days_remaining']
+            if days < 0:
+                expired.append(d)
+            elif days <= warning_days:
+                expiring_soon.append(d)
+                
+        # Write alerts - check for duplicates by triggered_by + date
+        today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        for group, severity, msg_tpl in [
+            (expired, 'error', 'Visa for {name} ({nationality}) is expired.'),
+            (expiring_soon, 'warning', 'Visa for {name} ({nationality}) expires in {days} days.')
+        ]:
+            for p in group:
+                msg = msg_tpl.format(name=p['name'], nationality=p['nationality'], days=p.get('days_remaining'))
+                trigger_key = f"EXP-{p['id']}-{today_str}"
+                
+                # Check duplicate
+                dup = db.execute("SELECT id FROM alerts WHERE triggered_by=?", (trigger_key,)).fetchone()
+                if not dup:
+                    db.execute(
+                        "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+                        ('visa_expiry', msg, severity, trigger_key)
+                    )
+        db.commit()
+
+        return api_response(data={'expired': expired, 'expiring_soon': expiring_soon, 'threshold': warning_days})
+    finally:
+        db.close()
+
+
+@immigration_bp.route('/travelers/under-investigation', methods=['GET'])
+def get_under_investigation():
+    db = get_db()
+    try:
+        rows = db.execute("""
+            SELECT id, name, nationality, passport_photo, investigation_notes, updated_at
+            FROM entities
+            WHERE type='Traveler' AND investigation_flag = 1 AND is_blacklist = 0
+            ORDER BY updated_at DESC
+        """).fetchall()
+        return api_response(data=[dict(r) for r in rows])
+    finally:
+        db.close()
+
+
+@immigration_bp.route('/travelers/<entity_id>/flag-investigation', methods=['POST'])
+def flag_investigation(entity_id):
+    db = get_db()
+    try:
+        db.execute("UPDATE entities SET investigation_flag=1, status='Flagged', updated_at=datetime('now') WHERE id=?", (entity_id,))
+        row = db.execute("SELECT name FROM entities WHERE id=?", (entity_id,)).fetchone()
+        name = row['name'] if row else entity_id
+        
+        # Write alert
+        db.execute(
+            "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+            ('investigation_flag', f"Traveller {name} flagged for investigation — face mismatch on scan.", 'error', 'Immigration Scanner')
+        )
+        db.commit()
+        return api_response(message=f"Traveller {name} flagged for investigation")
+    finally:
+        db.close()
+
+
+@immigration_bp.route('/travelers/<entity_id>/confirm-blacklist', methods=['POST'])
+def confirm_blacklist(entity_id):
+    data = request.get_json(silent=True) or {}
+    officer_id = data.get('officer_id', 'Unknown Officer')
+    notes = data.get('notes', '')
+    
+    db = get_db()
+    try:
+        db.execute("""
+            UPDATE entities 
+            SET is_blacklist=1, investigation_flag=0, status='Blacklisted', blacklist_reason=?, investigation_notes=?, updated_at=datetime('now') 
+            WHERE id=?
+        """, (f"Confirmed by {officer_id}: {notes}", notes, entity_id))
+        
+        row = db.execute("SELECT name FROM entities WHERE id=?", (entity_id,)).fetchone()
+        name = row['name'] if row else entity_id
+        
+        db.execute(
+            "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+            ('blacklist_confirmed', f"Traveller {name} confirmed blacklisted by officer {officer_id}.", 'critical', officer_id)
+        )
+        db.commit()
+        return api_response(message=f"Traveller {name} blacklisted")
+    finally:
+        db.close()
+
+
+@immigration_bp.route('/travelers/<entity_id>/clear-flag', methods=['POST'])
+def clear_flag(entity_id):
+    data = request.get_json(silent=True) or {}
+    notes = data.get('notes', '')
+    
+    db = get_db()
+    try:
+        db.execute("""
+            UPDATE entities 
+            SET investigation_flag=0, status='Under Verification', investigation_notes=?, updated_at=datetime('now') 
+            WHERE id=?
+        """, (notes, entity_id))
+        
+        row = db.execute("SELECT name FROM entities WHERE id=?", (entity_id,)).fetchone()
+        name = row['name'] if row else entity_id
+        
+        db.execute(
+            "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+            ('flag_cleared', f"Investigation flag cleared for {name}.", 'info', 'Immigration Officer')
+        )
+        db.commit()
+        return api_response(message=f"Flag cleared for {name}")
+    finally:
+        db.close()
+

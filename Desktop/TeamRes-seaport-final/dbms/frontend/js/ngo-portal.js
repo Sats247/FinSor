@@ -187,6 +187,96 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-refresh')?.addEventListener('click', () => {
     loadAssignments(document.getElementById('filter-status')?.value || '');
     loadCounts();
+    loadAppeals();
     showToast('Refreshed', 'info');
   });
+
+  // Tab switching
+  document.querySelectorAll('.ngo-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.ngo-tab').forEach(t => {
+        t.classList.remove('active');
+        t.style.borderBottomColor = 'transparent';
+        t.style.color = 'var(--color-text-muted)';
+      });
+      tab.classList.add('active');
+      tab.style.borderBottomColor = 'var(--color-primary)';
+      tab.style.color = 'var(--color-primary)';
+      
+      document.querySelectorAll('.ngo-tab-content').forEach(c => c.style.display = 'none');
+      document.getElementById(tab.dataset.tab).style.display = 'block';
+    });
+  });
+
+  // Load Appeals on init
+  loadAppeals();
 });
+
+async function loadAppeals() {
+  const container = document.getElementById('ngo-appeals-container');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--color-text-muted);padding:16px">Loading appeals...</p>';
+
+  const res = await apiFetch('/api/ngo/all/appeals');
+  if (!res.success) { showToast('Failed to load appeals', 'error'); return; }
+
+  const items = res.data;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state"><p>No pending appeals or requests.</p></div>';
+    return;
+  }
+
+  container.innerHTML = items.map(a => {
+    const isEditing = a.status === 'in_progress' ? 'selected' : '';
+    return `
+      <div class="assignment-card" id="appeal-${a.id}" style="border-left:4px solid var(--color-warning)">
+        <div class="assignment-card-header">
+          <div>
+            <div class="assignment-prov">${a.refugee_name || 'Refugee'} (${a.provisional_id})</div>
+            <div class="assignment-force">Appeal Type: <strong>${a.type}</strong></div>
+          </div>
+          ${statusBadge(a.status === 'open' ? 'Pending' : 'In Progress')}
+        </div>
+        <div class="assignment-message" style="margin-top:12px">"${a.description}"</div>
+        <div class="assignment-meta">
+          <span>Submitted: ${formatDateTime(a.timestamp)}</span>
+        </div>
+        
+        <div style="margin-top:16px;padding:16px;background:var(--color-surface-hover);border-radius:6px;border:1px solid var(--color-border)">
+          <div style="margin-bottom:12px">
+            <label class="form-label">Update Status</label>
+            <select id="appeal-status-${a.id}" class="form-input" style="background:#fff;padding:6px">
+              <option value="in_progress" ${a.status === 'in_progress' ? 'selected' : ''}>Investigating / In Progress</option>
+              <option value="resolved">Mark Resolved</option>
+              <option value="closed">Close Request</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px">
+            <label class="form-label">Response Notes to Refugee</label>
+            <textarea id="appeal-notes-${a.id}" class="form-input" rows="2" style="background:#fff" placeholder="Describe the resolution..."></textarea>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveAppealUpdate(${a.id})">Save Response</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function saveAppealUpdate(appealId) {
+  const statusEl = document.getElementById(`appeal-status-${appealId}`);
+  const notesEl = document.getElementById(`appeal-notes-${appealId}`);
+  if (!statusEl || !notesEl) return;
+
+  const res = await apiFetch(`/api/ngo/appeals/${appealId}`, {
+    method: 'PUT',
+    body: { status: statusEl.value, response_notes: notesEl.value }
+  });
+
+  if (res.success) {
+    showToast('Appeal updated', 'success');
+    loadAppeals(); // refresh list
+  } else {
+    showToast('Failed to update appeal: ' + res.message, 'error');
+  }
+}
+

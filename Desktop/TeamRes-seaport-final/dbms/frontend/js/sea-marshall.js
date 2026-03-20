@@ -63,6 +63,18 @@ function renderVesselTable(vessels) {
     const rowClass     = isFlagged ? 'row-flagged' : (isUnverified ? 'row-unverified' : '');
     const mov          = v.movement_status || 'APPROACHING';
     const m            = MOVEMENT[mov] || MOVEMENT.APPROACHING;
+    const isHC = v.health_clearance === 1;
+    const isCC = v.customs_clearance === 1;
+    let clHtml = `
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span class="badge" style="background:${isHC ? 'var(--color-success)' : 'var(--color-alert)'};color:#fff;font-size:10px;padding:2px 4px">Health ${isHC ? '✓' : '✗'}</span>
+        <span class="badge" style="background:${isCC ? 'var(--color-success)' : 'var(--color-alert)'};color:#fff;font-size:10px;padding:2px 4px">Customs ${isCC ? '✓' : '✗'}</span>
+      </div>
+    `;
+    if (isHC && isCC) {
+      clHtml += `<div style="margin-top:6px"><span class="badge" style="background:var(--color-success);color:#fff;font-size:10px;width:100%;text-align:center;padding:3px 6px">Cleared for Departure</span></div>`;
+    }
+
     return `
     <tr class="${rowClass}" id="row-${v.imo}">
       <td><span class="font-mono">${isFlagged ? '<span class="flag-pulse"></span> ' : ''}</span>${v.imo}</td>
@@ -77,10 +89,12 @@ function renderVesselTable(vessels) {
       <td class="font-mono">${v.crew_count||'—'}</td>
       <td><span class="mov-badge" style="color:${m.color};font-size:13px">${m.icon} ${m.label}</span></td>
       <td>${statusBadge(v.status)}</td>
+      <td>${clHtml}</td>
       <td>
-        <div class="table-actions">
-          <button class="btn btn-secondary btn-sm" onclick="inspectVessel('${v.imo}')">Inspect</button>
-          ${isFlagged ? `<button class="btn btn-danger btn-sm" onclick="showIncidentModal('${v.imo}')">Report</button>` : ''}
+        <div class="table-actions" style="flex-direction:column;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="inspectVessel('${v.imo}')" style="width:100%">Inspect</button>
+          <button class="btn btn-primary btn-sm" onclick="manageClearance('${v.imo}')" style="width:100%">Clearance</button>
+          ${isFlagged ? `<button class="btn btn-danger btn-sm" onclick="showIncidentModal('${v.imo}')" style="width:100%">Report</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -259,6 +273,79 @@ async function markUnverified(imo) {
     await loadVessels();
   } else {
     showToast('Failed to update: ' + res.message, 'error');
+  }
+}
+
+// ── Vessel Clearance Logic ──────────────────────────────────────
+window.manageClearance = async function(imo) {
+  const vessel = _vessels.find(v => v.imo === imo);
+  if (!vessel) return;
+  
+  // fetch log
+  const res = await apiFetch(`/api/sea-marshall/vessels/${imo}/clearance-log`);
+  const logs = res.success ? res.data : [];
+  
+  const isHC = vessel.health_clearance === 1;
+  const isCC = vessel.customs_clearance === 1;
+  const healthBadge = `<span class="badge" style="background:${isHC ? 'var(--color-success)' : 'var(--color-alert)'};color:#fff;">Health ${isHC ? '✓ Cleared' : '✗ Pending/Denied'}</span>`;
+  const customsBadge = `<span class="badge" style="background:${isCC ? 'var(--color-success)' : 'var(--color-alert)'};color:#fff;">Customs ${isCC ? '✓ Cleared' : '✗ Pending/Denied'}</span>`;
+  
+  const drawerHTML = `
+    <div style="margin-bottom:16px;display:flex;gap:12px">
+      ${healthBadge} ${customsBadge}
+    </div>
+    
+    <div style="margin-bottom:20px;padding:16px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface)">
+      <h4 style="margin:0 0 12px;font-size:14px">Health Clearance</h4>
+      ${isHC ? `<p style="font-size:12px;margin:0 0 12px;color:var(--color-text-secondary)">Granted by ${vessel.health_clearance_by} at ${formatDateTime(vessel.health_clearance_at)}</p>` : ''}
+      <textarea id="cl-health-notes" class="form-input" rows="2" placeholder="Optional notes..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success btn-sm" onclick="submitClearance('${imo}', 'health', true)">Grant Health Clearance</button>
+        <button class="btn btn-danger btn-sm" onclick="submitClearance('${imo}', 'health', false)">Deny</button>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:20px;padding:16px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface)">
+      <h4 style="margin:0 0 12px;font-size:14px">Customs Clearance</h4>
+      ${isCC ? `<p style="font-size:12px;margin:0 0 12px;color:var(--color-text-secondary)">Granted by ${vessel.customs_clearance_by} at ${formatDateTime(vessel.customs_clearance_at)}</p>` : ''}
+      <textarea id="cl-customs-notes" class="form-input" rows="2" placeholder="Optional notes..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success btn-sm" onclick="submitClearance('${imo}', 'customs', true)">Grant Customs Clearance</button>
+        <button class="btn btn-danger btn-sm" onclick="submitClearance('${imo}', 'customs', false)">Deny</button>
+      </div>
+    </div>
+    
+    <h4 style="margin:0 0 12px;font-size:14px;border-top:1px solid var(--color-border);padding-top:16px">Clearance Log</h4>
+    <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+      ${logs.length === 0 ? '<p style="font-size:12px;color:var(--color-text-muted)">No logs found.</p>' : logs.map(l => `
+        <div style="padding:10px;border-left:3px solid ${l.granted ? 'var(--color-success)' : 'var(--color-alert)'};background:var(--color-surface);font-size:12px;border-radius:0 4px 4px 0">
+          <strong>${l.clearance_type.toUpperCase()}</strong>: ${l.granted ? 'GRANTED' : 'DENIED'} by ${l.officer_id}<br>
+          <span style="color:var(--color-text-muted)">${formatDateTime(l.timestamp)}</span>
+          ${l.notes ? `<div style="margin-top:4px;color:var(--color-text-secondary)"><em>"${l.notes}"</em></div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  openDrawer(drawerHTML, `Clearance: ${vessel.vessel_name}`);
+}
+
+window.submitClearance = async function(imo, type, granted) {
+  const notes = document.getElementById(`cl-${type}-notes`)?.value || '';
+  const officer_id = SESSION?.user_id || 'Officer';
+  
+  const res = await apiFetch(`/api/sea-marshall/vessels/${imo}/${type}-clearance`, {
+    method: 'POST',
+    body: { officer_id, granted, notes }
+  });
+  
+  if (res.success) {
+    showToast(`${type.toUpperCase()} clearance updated`, 'success');
+    await loadVessels();
+    // Reopen drawer to refresh data
+    manageClearance(imo); 
+  } else {
+    showToast(`Error: ${res.message}`, 'error');
   }
 }
 

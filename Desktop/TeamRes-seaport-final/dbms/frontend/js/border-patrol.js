@@ -155,11 +155,32 @@ function showSuccessModal(provId) {
         <div style="font-size:11px;color:var(--color-text-muted);margin-top:6px">Click ID to copy to clipboard</div>
       </div>
       ${qrContainer}
-      <p style="font-size:12px;color:var(--color-text-muted);text-align:center;margin-top:12px">The NGO has been notified. Print this QR code and give it to the refugee as their reference.</p>`,
+      <p style="font-size:12px;color:var(--color-text-muted);text-align:center;margin-top:12px">The NGO has been notified. Print this QR code and give it to the refugee as their reference.</p>
+      
+      <hr style="margin:20px 0;border:none;border-top:1px solid var(--color-border)">
+      <div id="family-declare-section">
+        <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--color-text-primary)">Declare Family Members</h4>
+        <div id="family-members-container">
+          <div class="family-member-row" style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="text" class="form-input mem-name" placeholder="Relative Name" style="flex:1">
+            <input type="number" class="form-input mem-age" placeholder="Age" style="width:80px">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+          <button class="btn btn-secondary btn-sm" onclick="addFamilyRow()">+ Add Another</button>
+          <button class="btn btn-primary btn-sm" onclick="submitFamily('${provId}')" id="btn-family-search">Search Matches</button>
+        </div>
+      </div>
+      <div id="family-matches-section" style="display:none;margin-top:16px;padding:12px;background:var(--color-surface-hover);border-radius:6px;border:1px solid var(--color-border)">
+        <!-- Matches injected here -->
+      </div>
+      `,
     footer: `
-      <button class="btn btn-secondary" onclick="window.print()">Print QR Sheet</button>
-      <button class="btn btn-secondary" onclick="closeModal()">Register Another</button>
-      <button class="btn btn-primary" onclick="closeModal();loadRefugeeTable()">View All Refugees</button>`
+      <div style="display:flex;gap:8px;width:100%;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="window.print()">Print QR Sheet</button>
+        <button class="btn btn-secondary" onclick="closeModal()">Register Another</button>
+        <button class="btn btn-primary" onclick="closeModal();loadRefugeeTable()">Done</button>
+      </div>`
   });
   setTimeout(() => {
     if (typeof QRCode !== 'undefined') {
@@ -169,6 +190,91 @@ function showSuccessModal(provId) {
     }
   }, 100);
 }
+
+// ── Family Declarations ───────────────────────────────────────
+window.addFamilyRow = function() {
+  const container = document.getElementById('family-members-container');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.className = 'family-member-row';
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+  div.innerHTML = `
+    <input type="text" class="form-input mem-name" placeholder="Relative Name" style="flex:1">
+    <input type="number" class="form-input mem-age" placeholder="Age" style="width:80px">
+    <button class="btn btn-secondary btn-sm text-danger" onclick="this.parentElement.remove()" style="padding:0 12px">×</button>
+  `;
+  container.appendChild(div);
+};
+
+window.submitFamily = async function(provId) {
+  const rows = document.querySelectorAll('#family-members-container .family-member-row');
+  const members = Array.from(rows).map(row => {
+    return {
+      name: row.querySelector('.mem-name').value.trim(),
+      age: parseInt(row.querySelector('.mem-age').value) || 0
+    };
+  }).filter(m => m.name);
+
+  if (!members.length) {
+    showToast('Please enter at least one name to search', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-family-search');
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching...'; }
+
+  const res = await apiFetch(`/api/border-patrol/refugee/${provId}/family`, {
+    method: 'POST',
+    body: { members }
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Search Matches'; }
+
+  if (!res.success) {
+    showToast('Failed to save declarations', 'error');
+    return;
+  }
+
+  const matchesSection = document.getElementById('family-matches-section');
+  if (!matchesSection) return;
+
+  if (res.data && res.data.length > 0) {
+    const matchIds = res.data.map(m => m.provisional_id);
+    matchesSection.style.display = 'block';
+    matchesSection.innerHTML = `
+      <h5 style="margin:0 0 8px 0;color:var(--color-warning);">Possible Family Matches Found!</h5>
+      <ul style="margin:0 0 12px 16px;padding:0;font-size:13px;color:var(--color-text-secondary)">
+        ${res.data.map(m => `<li><strong>${m.name}</strong> (${m.provisional_id}) — DOB: ${m.dob}</li>`).join('')}
+      </ul>
+      <p style="font-size:12px;margin-bottom:12px">Would you like to link these records together under one Family ID?</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="linkFamily('${provId}', '${matchIds.join(',')}')">Yes, Link as Family</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('family-matches-section').style.display='none'">Ignore</button>
+      </div>
+    `;
+  } else {
+    showToast('Declarations saved. No matches found in the system.', 'info');
+    document.getElementById('family-declare-section').style.display = 'none';
+  }
+};
+
+window.linkFamily = async function(currentProvId, matchIdsStr) {
+  const allIds = [currentProvId, ...matchIdsStr.split(',')];
+  const res = await apiFetch('/api/border-patrol/family/link', {
+    method: 'POST',
+    body: { provisional_ids: allIds }
+  });
+
+  if (res.success) {
+    showToast('Family records linked successfully', 'success');
+    const matchesSection = document.getElementById('family-matches-section');
+    if (matchesSection) {
+      matchesSection.innerHTML = `<div class="text-success" style="font-weight:600;font-size:13px">✓ Family records officially linked.</div>`;
+    }
+  } else {
+    showToast('Failed to link family: ' + res.message, 'error');
+  }
+};
 
 // ── Refugee table ─────────────────────────────────────────────
 async function loadRefugeeTable() {

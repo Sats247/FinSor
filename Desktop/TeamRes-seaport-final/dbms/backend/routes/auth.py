@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session
-from database import api_response, api_error
+from database import api_response, api_error, get_db
 import hashlib
 
 auth_bp = Blueprint('auth', __name__)
@@ -43,6 +43,36 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     return api_response(message='Logged out successfully')
+
+
+@auth_bp.route('/ngo-login', methods=['POST'])
+def ngo_login():
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '').strip()
+    password = data.get('password', '').strip()
+
+    if not email or not password:
+        return api_error('Email and password are required', 400)
+
+    db = get_db()
+    try:
+        user = db.execute(
+            "SELECT * FROM users WHERE email = ? AND password = ? AND role IN ('ngo_admin', 'ngo_worker')",
+            (email, password)
+        ).fetchone()
+
+        if user:
+            session_data = {
+                'token': f"ngo_token_{user['id']}",
+                'role': user['role'],
+                'ngo_id': user['ngo_id'],
+                'name': user['name']
+            }
+            return api_response(data=session_data, message='NGO Login successful')
+        else:
+            return api_error('Invalid email or password', 401)
+    finally:
+        db.close()
 
 
 @auth_bp.route('/session', methods=['GET'])

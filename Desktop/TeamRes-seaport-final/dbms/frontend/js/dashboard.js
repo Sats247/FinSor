@@ -174,6 +174,247 @@ async function saveNgoAssignment(regId, refugeeName) {
   }
 }
 
+// ── Alerts ────────────────────────────────────────────────────────
+const _SEVERITY_STYLE = {
+  critical: { bg: '#FEF2F2', border: '#DC2626', badge: '#DC2626', label: '🔴 Critical' },
+  warning:  { bg: '#FFFBEB', border: '#D97706', badge: '#D97706', label: '🟡 Warning'  },
+  info:     { bg: '#EFF6FF', border: '#0057B8', badge: '#0057B8', label: '🔵 Info'     },
+};
+
+function _renderAlertRow(alert, showReadBtn = true) {
+  const sev  = _SEVERITY_STYLE[alert.severity] || _SEVERITY_STYLE.info;
+  const time = formatDateTime(alert.timestamp);
+  const readBtn = showReadBtn && !alert.read
+    ? `<button class="btn btn-secondary btn-sm" style="flex-shrink:0"
+         onclick="markAlertRead(${alert.id}, this)">✓ Mark read</button>`
+    : (alert.read ? `<span style="font-size:11px;color:var(--color-text-muted)">Read</span>` : '');
+  return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;
+              background:${sev.bg};border:1px solid ${sev.border};border-radius:8px;
+              opacity:${alert.read ? '0.6' : '1'}">
+    <span style="background:${sev.badge};color:#fff;font-size:10px;font-weight:700;
+                 padding:3px 8px;border-radius:100px;white-space:nowrap;margin-top:2px">
+      ${sev.label}
+    </span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;color:var(--color-text-primary);line-height:1.5">${alert.message}</div>
+      <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px">
+        ${alert.type ? `[${alert.type}]` : ''} ${alert.triggered_by ? `· ${alert.triggered_by}` : ''} · ${time}
+      </div>
+    </div>
+    ${readBtn}
+  </div>`;
+}
+
+async function loadAlerts() {
+  const container = document.getElementById('alerts-active-list');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--color-text-muted)">Loading…</div>';
+  const res = await apiFetch('/api/dashboard/alerts?unread=true');
+  if (!res.success) { container.innerHTML = '<div style="color:var(--color-alert);padding:12px">Failed to load alerts</div>'; return; }
+  const { items, unread_count } = res.data;
+  // Update badge
+  const badge = document.getElementById('alert-unread-badge');
+  if (badge) { badge.textContent = unread_count; badge.style.display = unread_count > 0 ? 'inline' : 'none'; }
+  if (!items.length) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-text-muted)">✓ No unread alerts</div>';
+    return;
+  }
+  container.innerHTML = items.map(a => _renderAlertRow(a, true)).join('');
+}
+
+async function loadAllAlerts() {
+  const container = document.getElementById('alerts-history-list');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--color-text-muted)">Loading…</div>';
+  const res = await apiFetch('/api/dashboard/alerts');
+  if (!res.success) { container.innerHTML = '<div style="color:var(--color-alert);padding:12px">Failed to load</div>'; return; }
+  const { items } = res.data;
+  if (!items.length) { container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-text-muted)">No alerts in history</div>'; return; }
+  container.innerHTML = items.map(a => _renderAlertRow(a, false)).join('');
+}
+
+async function markAlertRead(alertId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const res = await apiFetch(`/api/dashboard/alerts/read/${alertId}`, { method: 'POST' });
+  if (res.success) { loadAlerts(); showToast('Alert acknowledged', 'success'); }
+  else { showToast('Could not mark alert as read', 'error'); if (btn) { btn.disabled = false; btn.textContent = '✓ Mark read'; } }
+}
+
+async function markAllAlertsRead() {
+  const res = await apiFetch('/api/dashboard/alerts/read-all', { method: 'POST' });
+  if (res.success) { loadAlerts(); showToast('All alerts acknowledged', 'success'); }
+  else showToast('Failed to clear alerts', 'error');
+}
+
+// ── NGO Management ──────────────────────────────────────────────────
+async function loadNgoMgmtTab() {
+  const tbody = document.getElementById('dash-ngo-mgmt-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--color-text-muted)">Loading...</td></tr>';
+  const res = await apiFetch('/api/dashboard/ngos/all');
+  if (!res.success) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--color-alert)">Error loading NGOs</td></tr>';
+    return;
+  }
+  if (!res.data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--color-text-muted)">No NGOs found</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = res.data.map(ngo => {
+    let focus = ngo.focus_area || '—';
+    let contact = `<div>${ngo.contact_person || '—'}</div><div style="font-size:11px;color:var(--color-text-muted)">${ngo.contact_email || ''}</div>`;
+    
+    let pct = ngo.max_capacity > 0 ? (ngo.current_count / ngo.max_capacity) * 100 : 0;
+    pct = Math.min(100, Math.max(0, pct));
+    let color = 'var(--color-success)';
+    if (pct >= 90) color = 'var(--color-alert)';
+    else if (pct >= 70) color = 'var(--color-warning)';
+    let capBar = `
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px">${ngo.current_count} / ${ngo.max_capacity}  (${pct.toFixed(0)}%)</div>
+      <div style="height:6px;background:var(--color-border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};transition:width 300ms"></div>
+      </div>
+    `;
+
+    let badgeStyle = ngo.status === 'approved' ? 'background:var(--color-success-tint);color:var(--color-success)' : 
+                     (ngo.status === 'pending' ? 'background:var(--color-warning-tint);color:var(--color-warning)' : 
+                     'background:var(--color-border);color:var(--color-text-secondary)');
+    let statusBadge = `<span style="display:inline-block;padding:3px 8px;border-radius:100px;font-size:11px;font-weight:700;${badgeStyle}">${ngo.status.toUpperCase()}</span>`;
+
+    let actions = '';
+    if (ngo.status === 'pending') {
+      actions += `<button class="btn btn-secondary btn-sm" onclick="approveNgo(${ngo.id})">Approve</button>`;
+    } else if (ngo.status === 'approved') {
+      actions += `<button class="btn btn-secondary btn-sm" style="color:var(--color-alert)" onclick="deactivateNgo(${ngo.id})">Deactivate</button>`;
+    }
+    
+    return `<tr>
+      <td style="font-weight:600">${ngo.name}</td>
+      <td style="font-size:12px">${focus}</td>
+      <td>${contact}</td>
+      <td>${capBar}</td>
+      <td>${statusBadge}</td>
+      <td><div style="display:flex;gap:4px">${actions}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function approveNgo(id) {
+  const res = await apiFetch(`/api/dashboard/ngos/${id}/approve`, { method: 'POST' });
+  if (res.success) { showToast('NGO Approved', 'success'); loadNgoMgmtTab(); }
+  else showToast(res.message, 'error');
+}
+
+async function deactivateNgo(id) {
+  if (!confirm('Are you sure you want to deactivate this NGO?')) return;
+  const res = await apiFetch(`/api/dashboard/ngos/${id}/deactivate`, { method: 'POST' });
+  if (res.success) { showToast('NGO Deactivated', 'success'); loadNgoMgmtTab(); }
+  else showToast(res.message, 'error');
+}
+
+function openAddNgoModal() {
+  document.getElementById('add-ngo-form').reset();
+  document.getElementById('add-ngo-modal').style.display = 'flex';
+}
+
+async function submitAddNgoForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btn-save-ngo');
+  btn.disabled = true;
+  const payload = {
+    name: document.getElementById('ngo-name').value,
+    focus_area: document.getElementById('ngo-focus').value,
+    contact_person: document.getElementById('ngo-contact-person').value,
+    contact_email: document.getElementById('ngo-contact-email').value,
+    max_capacity: parseInt(document.getElementById('ngo-capacity').value) || 0
+  };
+  const res = await apiFetch('/api/dashboard/ngos', { method: 'POST', body: payload });
+  btn.disabled = false;
+  if (res.success) {
+    document.getElementById('add-ngo-modal').style.display = 'none';
+    showToast('NGO Added', 'success');
+    if (document.getElementById('dash-tab-ngo-mgmt').classList.contains('active')) {
+      loadNgoMgmtTab();
+    }
+  } else {
+    showToast(res.message, 'error');
+  }
+}
+
+// ── Unit Statistics ─────────────────────────────────────────────────
+let _unitStatsData = [];
+let _unitStatsChart = null;
+
+async function loadUnitStats() {
+  const res = await apiFetch('/api/dashboard/stats/units');
+  if (res.success) {
+    _unitStatsData = res.data;
+    renderUnitStats();
+  } else {
+    showToast('Failed to load unit stats', 'error');
+  }
+}
+
+function renderUnitStats() {
+  const selector = document.getElementById('unit-stats-selector');
+  const allView  = document.getElementById('unit-stats-all-view');
+  const singleView = document.getElementById('unit-stats-single-view');
+  if (!selector || !_unitStatsData.length) return;
+
+  const selected = selector.value;
+  
+  if (selected === 'All') {
+    allView.style.display = 'block';
+    singleView.style.display = 'none';
+    
+    const ctx = document.getElementById('chart-unit-stats')?.getContext('2d');
+    if (!ctx) return;
+    
+    if (_unitStatsChart) _unitStatsChart.destroy();
+    
+    const labels = _unitStatsData.map(d => d.unit_name);
+    const refugees = _unitStatsData.map(d => d.total_refugees_registered);
+    const vessels = _unitStatsData.map(d => d.total_vessels_checked);
+    const incidents = _unitStatsData.map(d => d.flagged_incidents);
+    
+    _unitStatsChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Refugees Registered', data: refugees, backgroundColor: '#0057B8', borderRadius: 4 },
+          { label: 'Vessels Checked', data: vessels, backgroundColor: '#0284C7', borderRadius: 4 },
+          { label: 'Flagged Incidents', data: incidents, backgroundColor: '#DC2626', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#F0F0F0' }, ticks: { precision: 0 } }
+        }
+      }
+    });
+  } else {
+    allView.style.display = 'none';
+    singleView.style.display = 'block';
+    
+    const unitData = _unitStatsData.find(d => d.unit_name === selected);
+    if (unitData) {
+      document.getElementById('kpi-unit-refugees').textContent = unitData.total_refugees_registered.toLocaleString();
+      document.getElementById('kpi-unit-vessels').textContent = unitData.total_vessels_checked.toLocaleString();
+      document.getElementById('kpi-unit-incidents').textContent = unitData.flagged_incidents.toLocaleString();
+    }
+  }
+}
+
+
+// ── DOMContentLoaded ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   loadKPIs();
   _kpiPollInterval = setInterval(loadKPIs, 30000);
@@ -187,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('#refugee-tab-bar .tab-item').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('#refugee-tab-bar .tab-item').forEach(t => t.classList.remove('active'));
-      ['dash-tab-refugees','dash-tab-ngo'].forEach(id => {
+      ['dash-tab-refugees','dash-tab-ngo','dash-tab-ngo-mgmt','dash-tab-unit-stats'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
       });
@@ -196,9 +437,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (target) target.classList.add('active');
       if (tab.dataset.tab === 'dash-tab-refugees') loadDashboardRefugees();
       if (tab.dataset.tab === 'dash-tab-ngo') loadNgoAssignmentsTab();
+      if (tab.dataset.tab === 'dash-tab-ngo-mgmt') loadNgoMgmtTab();
+      if (tab.dataset.tab === 'dash-tab-unit-stats') loadUnitStats();
     });
   });
 
-  // Default: load refugee list on page open
+  // Alerts tabs
+  document.querySelectorAll('#alerts-tab-bar .tab-item').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#alerts-tab-bar .tab-item').forEach(t => t.classList.remove('active'));
+      ['atab-active','atab-history'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+      });
+      tab.classList.add('active');
+      const target = document.getElementById(tab.dataset.atab);
+      if (target) target.classList.add('active');
+      if (tab.dataset.atab === 'atab-active') loadAlerts();
+      if (tab.dataset.atab === 'atab-history') loadAllAlerts();
+    });
+  });
+
+  // Default: load refugee list and alerts on page open
   loadDashboardRefugees();
+  loadAlerts();
 });
+

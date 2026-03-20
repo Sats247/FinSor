@@ -44,6 +44,15 @@
       </div>
     </header>
     <main class="content-area">
+      <!-- Cross-link to standalone NGO Portal -->
+      <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="color: #065f46; margin-bottom: 4px; font-size: 16px;">New Dedicated NGO Portal Available</h3>
+          <p style="color: #047857; font-size: 14px; margin: 0;">Access the full-featured standalone NGO management interface and field worker dashboards.</p>
+        </div>
+        <a href="http://127.0.0.1:8000" target="_blank" class="btn btn-primary" style="background-color: #047857; text-decoration: none; padding: 10px 20px; border-radius: 6px; color: white; font-weight: 600; border:none; cursor:pointer;" onclick="if(window.location.protocol==='file:') this.href='../../../ngo-frontend/index.html';">Open NGO Portal &rarr;</a>
+      </div>
+
       <div class="page-header">
         <div>
           <h1 class="page-title" data-i18n="ngo.title">NGO Support Portal</h1>
@@ -90,21 +99,35 @@
         </div>
       </div>
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
-        <label class="form-label" style="white-space:nowrap" data-i18n="ngo.filter_label">Filter by Status</label>
-        <select id="filter-status" style="width:180px">
-          <option value="">All Assignments</option>
-          <option value="Pending">Pending</option>
-          <option value="Acknowledged">Acknowledged</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Completed">Completed</option>
-        </select>
+      <!-- Tabs -->
+      <div style="display:flex;gap:16px;border-bottom:1px solid var(--color-border);margin-bottom:16px;padding:0 24px;">
+        <div class="ngo-tab active" data-tab="tab-assignments" style="padding:12px 0;cursor:pointer;font-weight:600;color:var(--color-primary);border-bottom:2px solid var(--color-primary);">Assignments</div>
+        <div class="ngo-tab" data-tab="tab-appeals" style="padding:12px 0;cursor:pointer;font-weight:600;color:var(--color-text-muted);border-bottom:2px solid transparent;">Appeals & Requests</div>
       </div>
 
-      <!-- Assignments Feed -->
-      <div class="assignments-feed" id="assignments-container">
-        <p style="color:var(--color-text-muted);padding:16px">Loading assignments...</p>
+      <div id="tab-assignments" class="ngo-tab-content" style="display:block">
+        <!-- Filter bar -->
+        <div class="filter-bar">
+          <label class="form-label" style="white-space:nowrap" data-i18n="ngo.filter_label">Filter by Status</label>
+          <select id="filter-status" style="width:180px">
+            <option value="">All Assignments</option>
+            <option value="Pending">Pending</option>
+            <option value="Acknowledged">Acknowledged</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+
+        <!-- Assignments Feed -->
+        <div class="assignments-feed" id="assignments-container">
+          <p style="color:var(--color-text-muted);padding:16px">Loading assignments...</p>
+        </div>
+      </div>
+
+      <div id="tab-appeals" class="ngo-tab-content" style="display:none">
+        <div class="assignments-feed" id="ngo-appeals-container">
+          <p style="color:var(--color-text-muted);padding:16px">Loading appeals...</p>
+        </div>
       </div>
     </main>
   </div>

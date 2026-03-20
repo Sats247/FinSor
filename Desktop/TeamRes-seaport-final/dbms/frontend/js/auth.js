@@ -11,18 +11,19 @@ function enforceRBAC() {
     window.location.href = '/index.html';
     return;
   }
-  // Refugee: only refugee-portal
+  // Refugee: only allowed on refugee-portal
+  // Redirect to refugee portal (not logout/index) so clicking any sidebar link
+  // still lands them in the right place instead of signing them out.
   if (session.role === 'refugee' && !path.includes('refugee-portal')) {
-    window.location.href = '/index.html';
+    window.location.href = '/pages/refugee-portal.html';
     return;
   }
   // NGO: only ngo-portal and refugee-portal (read-only view)
   if (session.role === 'ngo' && !path.includes('ngo-portal') && !path.includes('refugee-portal')) {
-    window.location.href = '/index.html';
+    window.location.href = '/pages/ngo-portal.html';
     return;
   }
-  // Authority users can access all portals including refugee-portal (staff view)
-  // No redirect needed for role === 'authority'
+  // Authority users can access all portals — no redirect
 }
 
 function renderSidebarUser() {

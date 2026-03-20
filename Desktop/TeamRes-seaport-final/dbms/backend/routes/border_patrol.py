@@ -15,6 +15,92 @@ def _gen_provisional_id(force):
     return f"PROV-{code}-2026-{num:06d}"
 
 
+@border_patrol_bp.route('/assign-ngo/<provisional_id>', methods=['POST'])
+def assign_ngo(provisional_id):
+    # Keep original mock implementation
+    return api_response(message="NGO Assiged successfully.")
+
+@border_patrol_bp.route('/refugee/<provisional_id>/family', methods=['POST'])
+def declare_family(provisional_id):
+    data = request.get_json(silent=True) or {}
+    members = data.get('members', [])
+    if not isinstance(members, list):
+        return api_error('members must be a list')
+        
+    db = get_db()
+    try:
+        matches = []
+        for mem in members:
+            name = mem.get('name', '')
+            age = mem.get('age', 0)
+            if name:
+                db.execute(
+                    "INSERT INTO family_declarations (provisional_id, declared_member_name, declared_member_age) VALUES (?, ?, ?)",
+                    (provisional_id, name, age)
+                )
+                # Search for matches in entities
+                # basic LIKE matching on name
+                search_term = f"%{name}%"
+                found = db.execute("""
+                    SELECT rr.provisional_id, e.name, e.dob 
+                    FROM entities e
+                    JOIN refugee_registrations rr ON e.id = rr.entity_id
+                    WHERE e.name LIKE ? AND rr.provisional_id != ?
+                """, (search_term, provisional_id)).fetchall()
+                
+                for r in found:
+                    matches.append(dict(r))
+        
+        if matches:
+            # deduplicate matches by provisional_id
+            unique_matches = {m['provisional_id']: m for m in matches}.values()
+            
+            # Write alert
+            ref = db.execute("SELECT e.name FROM refugee_registrations rr JOIN entities e ON rr.entity_id=e.id WHERE provisional_id=?", (provisional_id,)).fetchone()
+            ref_name = ref['name'] if ref else provisional_id
+            db.execute(
+                "INSERT INTO alerts (type, message, severity, triggered_by) VALUES (?, ?, ?, ?)",
+                ('family_match', f"Possible family match found for refugee {ref_name} — review recommended.", 'info', 'Border Patrol')
+            )
+            db.commit()
+            return api_response(data=list(unique_matches), message="Declarations saved. Matches found.")
+            
+        db.commit()
+        return api_response(data=[], message="Declarations saved. No matches.")
+    finally:
+        db.close()
+
+@border_patrol_bp.route('/family/link', methods=['POST'])
+def link_family():
+    data = request.get_json(silent=True) or {}
+    prov_ids = data.get('provisional_ids', [])
+    if not prov_ids or not isinstance(prov_ids, list):
+        return api_error('provisional_ids must be a list of IDs')
+        
+    import time
+    family_id = f"FAM-{int(time.time())}"
+    
+    db = get_db()
+    try:
+        # Update family_id in entities via refugee_registrations
+        placeholders = ','.join(['?'] * len(prov_ids))
+        
+        # We need to find the entity IDs for these provisional IDs
+        rows = db.execute(f"SELECT entity_id FROM refugee_registrations WHERE provisional_id IN ({placeholders})", prov_ids).fetchall()
+        entity_ids = [r['entity_id'] for r in rows]
+        
+        if entity_ids:
+            e_placeholders = ','.join(['?'] * len(entity_ids))
+            db.execute(
+                f"UPDATE entities SET family_id=? WHERE id IN ({e_placeholders})",
+                [family_id] + entity_ids
+            )
+        db.commit()
+        return api_response(message=f"Successfully linked {len(entity_ids)} refugees to {family_id}")
+    finally:
+        db.close()
+
+
 @border_patrol_bp.route('/watchlist-check', methods=['POST'])
 def watchlist_check():
     data = request.get_json(silent=True) or {}
@@ -119,6 +205,19 @@ def register_refugee():
             data.get('ngo_id', 'NGO-001'), data['assigned_ngo'],
             data['ngo_message']
         ))
+
+        # Status timeline: Registered
+        db.execute("""
+            INSERT INTO refugee_status_log (provisional_id, stage, updated_by)
+            VALUES (?, 'registered', ?)
+        """, (provisional_id, data['registered_by']))
+        
+        # Status timeline: Assigned to NGO (if immediately assigned)
+        if data.get('assigned_ngo'):
+            db.execute("""
+                INSERT INTO refugee_status_log (provisional_id, stage, updated_by)
+                VALUES (?, 'assigned_to_ngo', ?)
+            """, (provisional_id, data['registered_by'] or 'System'))
 
         db.commit()
     except Exception as e:

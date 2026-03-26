@@ -403,19 +403,12 @@ def api_regime():
 @app.route('/api/predictions')
 def api_predictions():
     try:
-        poly = data_fetch.get_polymarket_signals()
-        meta = data_fetch.get_metaculus_signals()
-        return jsonify({
-            'success': True,
-            'data': {
-                'polymarket': poly,
-                'metaculus': meta,
-                'fetched_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            }
-        })
+        from engine.data_fetch import fetch_predictions
+        data = fetch_predictions()
+        return jsonify({"predictions": data, "source": "Polymarket"})
     except Exception as e:
-        logger.error(f"api_predictions error: {e}")
-        return jsonify({'success': True, 'data': {'polymarket': [], 'metaculus': [], 'fetched_at': ''}})
+        app.logger.error(f"api_predictions error: {e}")
+        return jsonify({"predictions": [], "source": "Polymarket"})
 
 
 @app.route('/api/news')

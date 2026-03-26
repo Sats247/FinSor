@@ -120,129 +120,108 @@ def get_fund_nav(amfi_code):
     return _get_cached(key, 'amfi', lambda: _fetch_amfi_nav(amfi_code))
 
 
-# ─── Polymarket ───────────────────────────────────────────────────────────────
+# ─── Polymarket (Predictions) ───────────────────────────────────────────────────
 
-INDIA_KEYWORDS = ['india', 'rbi', 'sebi', 'nifty', 'bse', 'nse', 'inr', 'rupee',
-                  'sensex', 'modi', 'mumbai', 'delhi', 'chennai', 'bengaluru']
+import json as _json
 
+POLYMARKET_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+}
 
-def _fetch_polymarket():
-    url = "https://gamma-api.polymarket.com/markets?limit=50&active=true"
-    resp = requests.get(url, timeout=8)
-    resp.raise_for_status()
-    markets = resp.json()
+FINANCE_KEYWORDS = [
+    "india", "nifty", "sensex", "rbi", "rupee", "inflation", "fed", "rate",
+    "recession", "war", "ukraine", "russia", "china", "oil", "gold", "bitcoin",
+    "economy", "gdp", "election", "budget", "market", "stock", "tariff", "trump",
+    "pakistan", "nuclear", "conflict", "nato", "iran"
+]
 
-    india_relevant = []
-    for m in markets:
-        question = (m.get('question') or '').lower()
-        description = (m.get('description') or '').lower()
-        combined = question + ' ' + description
-        if any(kw in combined for kw in INDIA_KEYWORDS):
-            try:
-                prob = float(m.get('outcomePrices', ['0.5'])[0])
-            except Exception:
-                prob = 0.5
-            india_relevant.append({
-                'question': m.get('question', 'Unknown'),
-                'probability': round(prob, 2),
-                'volume_usd': int(float(m.get('volume', 0))),
-            })
-        if len(india_relevant) >= 3:
-            break
-
-    return india_relevant
-
-
-def get_polymarket_signals():
-    import requests
-from datetime import datetime
-
-def get_polymarket_signals():
-    """
-    Fetches active, India-relevant prediction market signals from Polymarket Gamma API.
-    """
-    # Use /events for better grouped metadata, or /search for keyword precision
-    BASE_URL = "https://gamma-api.polymarket.com/events"
-    
-    # Strict 2026 Parameters
-    params = {
-        "active": "true",     # Only current markets
-        "closed": "false",    # Only open for trading
-        "limit": 500          # Scan top 500 to catch Indian events
-    }
-    
+def fetch_predictions():
     try:
-        response = requests.get(BASE_URL, params=params, timeout=5)
-        if response.status_code != 200:
-            return []
-            
-        events = response.json()
-        india_signals = []
-        
-        # Keywords for India-relevant research
-        keywords = ['India', 'RBI', 'Nifty', 'Sensex', 'Modi', 'INR', 'BSE']
-        
-        for event in events:
-            # Check if title or description mentions India
-            title = event.get('title', '')
-            if any(k.lower() in title.lower() for k in keywords):
-                # Events usually have a 'markets' list; we grab the primary one
-                markets = event.get('markets', [])
-                if not markets: continue
-                
-                market = markets[0]
-                # Probability is usually outcomePrices[0] for the 'Yes' outcome
-                import json
-                try:
-                    prices_raw = market.get('outcomePrices', '["0.5", "0.5"]')
-                    if not prices_raw or prices_raw == 'None':
-                        prices_raw = '["0.5", "0.5"]'
-                    prices = json.loads(prices_raw)
-                    prob = float(prices[0])
-                    
-                    vol_val = event.get('volume24hr')
-                    vol = float(vol_val) if vol_val is not None else 0.0
-                    
-                    india_signals.append({
-                        "question": title,
-                        "probability": prob,
-                        "volume_usd": vol
-                    })
-                except Exception as e:
-                    logger.warning(f"Polymarket Parsing Error: {title} | {e}")
-                    continue
-        
-        # Sort by volume and return top 3
-        return sorted(india_signals, key=lambda x: x['volume_usd'], reverse=True)[:3]
-        
+        url = "https://gamma-api.polymarket.com/markets"
+        params = {
+            "limit": 100,
+            "active": "true",
+            "closed": "false",
+            "order": "volume24hr",
+            "ascending": "false",
+        }
+        resp = requests.get(url, params=params, headers=POLYMARKET_HEADERS, timeout=10)
+        resp.raise_for_status()
+        markets = resp.json()
+
+        results = []
+        for m in markets:
+            question = m.get("question", "") or m.get("title", "") or ""
+            if not any(kw in question.lower() for kw in FINANCE_KEYWORDS):
+                continue
+            try:
+                prices_raw = m.get("outcomePrices") or "[]"
+                prices = _json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+                probability = round(float(prices[0]) * 100) if prices else 0
+            except Exception:
+                probability = 0
+            try:
+                volume = round(float(m.get("volume24hr") or m.get("volume") or 0))
+            except Exception:
+                volume = 0
+            slug = m.get("slug", "")
+            results.append({
+                "title": question[:80] + ("..." if len(question) > 80 else ""),
+                "probability": probability,
+                "volume": volume,
+                "url": f"https://polymarket.com/event/{slug}" if slug else "https://polymarket.com",
+                "source": "Polymarket",
+            })
+            if len(results) >= 8:
+                break
+
+        if not results:
+            return _fetch_polymarket_fallback()
+        return results
+
     except Exception as e:
-        print(f"Polymarket Fetch Error: {e}")
+        logger.warning(f"Polymarket primary fetch failed: {e}")
+        return _fetch_polymarket_fallback()
+
+
+def _fetch_polymarket_fallback():
+    try:
+        url = "https://gamma-api.polymarket.com/events"
+        params = {"limit": 50, "active": "true", "order": "volume", "ascending": "false"}
+        resp = requests.get(url, params=params, headers=POLYMARKET_HEADERS, timeout=10)
+        resp.raise_for_status()
+        events = resp.json()
+        results = []
+        for event in events:
+            title = event.get("title", "") or ""
+            if not any(kw in title.lower() for kw in FINANCE_KEYWORDS):
+                continue
+            try:
+                markets = event.get("markets", [])
+                prices_raw = markets[0].get("outcomePrices", "[]") if markets else "[]"
+                prices = _json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+                probability = round(float(prices[0]) * 100) if prices else 0
+            except Exception:
+                probability = 0
+            try:
+                volume = round(float(event.get("volume") or 0))
+            except Exception:
+                volume = 0
+            slug = event.get("slug", "")
+            results.append({
+                "title": title[:80] + ("..." if len(title) > 80 else ""),
+                "probability": probability,
+                "volume": volume,
+                "url": f"https://polymarket.com/event/{slug}" if slug else "https://polymarket.com",
+                "source": "Polymarket",
+            })
+            if len(results) >= 8:
+                break
+        return results
+    except Exception as e:
+        logger.error(f"Polymarket fallback also failed: {e}")
         return []
-
-
-# ─── Metaculus ────────────────────────────────────────────────────────────────
-
-def _fetch_metaculus():
-    url = "https://www.metaculus.com/api2/questions/?limit=5&order_by=-activity&search=India+economy"
-    resp = requests.get(url, timeout=8, headers={'Accept': 'application/json'})
-    resp.raise_for_status()
-    data = resp.json()
-    results = []
-    for q in data.get('results', [])[:2]:
-        pred = q.get('community_prediction', {})
-        mid = pred.get('full', {}).get('q2') if isinstance(pred, dict) else None
-        results.append({
-            'title': q.get('title', 'Unknown'),
-            'community_prediction': round(float(mid), 2) if mid else None,
-            'url': f"https://www.metaculus.com/questions/{q.get('id', '')}/"
-        })
-    return results
-
-
-def get_metaculus_signals():
-    """Returns up to 2 Metaculus India economy signals."""
-    result = _get_cached('metaculus', 'metaculus', _fetch_metaculus)
-    return result if result else []
 
 
 # ─── Google News RSS ──────────────────────────────────────────────────────────

@@ -85,26 +85,43 @@ function updateMMI(score, label, summary) {
 }
 
 // ─── Predictions ──────────────────────────────────────────────────────────────
-async function loadPredictions() {
-  const data = await apiFetch('/api/predictions');
-  const container = document.getElementById('predictions-container');
-  if (!container) return;
-  const poly = (data.success && data.data.polymarket) || [];
-  if (!poly.length) { container.innerHTML = '<p style="font-size:var(--text-sm);color:var(--on-surface-muted);">No India-relevant predictions found.</p>'; return; }
-  container.innerHTML = poly.map((p, i) => `
-    <div class="prediction-row">
-      <div class="prediction-info">
-        <div class="prediction-q">${p.question}</div>
-        <div class="prediction-desc">Probability: <strong>${Math.round(p.probability * 100)}%</strong> · Volume: ${p.volume_usd > 1000 ? '$' + (p.volume_usd / 1000).toFixed(0) + 'K' : '$' + p.volume_usd}</div>
-      </div>
-      <div class="prediction-actions">
-        <span class="chip ${p.probability > 0.6 ? 'chip-gain' : p.probability < 0.4 ? 'chip-loss' : 'chip-neutral'}">${Math.round(p.probability * 100)}%</span>
-        <button class="intent-btn" onclick="openIntentMenu(this, '${p.question.substring(0,30)}')" title="Research Intent">
-          <i data-lucide="bookmark" width="14" height="14"></i>
-        </button>
-      </div>
-    </div>`).join('');
-  lucide.createIcons({ nodes: [container] });
+function renderPredictions(data) {
+    const container = document.getElementById('predictions-list')
+                   || document.querySelector('.predictions-container')
+                   || document.querySelector('[data-section="predictions"]')
+                   || document.getElementById('predictions-container');
+    if (!container) return;
+
+    const predictions = data.predictions || data || [];
+
+    if (!predictions.length) {
+        container.innerHTML = '<p style="color:#888;font-size:12px;padding:8px">No predictions available</p>';
+        return;
+    }
+
+    container.innerHTML = predictions.map(p => {
+        const prob = p.probability || 0;
+        const color = prob > 60 ? '#4ade80' : prob > 40 ? '#facc15' : '#f87171';
+        const vol = p.volume ? '$' + Number(p.volume).toLocaleString() : '';
+        return `
+            <div class="prediction-item" style="padding:8px 0;border-bottom:1px solid #1e293b;cursor:pointer"
+                 onclick="window.open('${p.url}','_blank')">
+                <div style="font-size:12px;color:#000000;font-weight:500;margin-bottom:4px;line-height:1.4">${p.title}</div>
+                <div style="display:flex;gap:12px;align-items:center">
+                    <span style="color:${color};font-weight:700;font-size:13px">${prob}%</span>
+                    ${vol ? `<span style="color:#64748b;font-size:11px">Vol: ${vol}</span>` : ''}
+                    <span style="color:#3b82f6;font-size:10px;margin-left:auto">Polymarket ↗️</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function loadPredictions() {
+    fetch('/api/predictions')
+        .then(r => r.json())
+        .then(data => renderPredictions(data))
+        .catch(err => console.error('Predictions fetch error:', err));
 }
 
 // ─── News ─────────────────────────────────────────────────────────────────────

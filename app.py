@@ -362,7 +362,12 @@ def api_regime():
         nifty = macro.get('nifty50', {}).get('value')
         nifty_200dma = macro.get('nifty_200dma')
 
-        regime, mmi_score = risk_engine.get_market_regime(vix, nifty, nifty_200dma)
+        from engine.gemini_client import get_smart_regime
+        smart = get_smart_regime(macro)
+        regime = smart.get('regime', 'Neutral')
+        regime_reason = smart.get('reason', 'Market mixed.')
+
+        mmi_score = risk_engine.get_mmi_score(vix, nifty, nifty_200dma)
         mmi_label = risk_engine.get_mmi_label(mmi_score)
         _, adjustments = risk_engine.apply_macro_adjustment(
             session.get('user_data', {}).get('risk_category', 'Balanced'), macro)
@@ -371,6 +376,7 @@ def api_regime():
             'success': True,
             'data': {
                 'regime': regime,
+                'regime_reason': regime_reason,
                 'mmi_score': mmi_score,
                 'mmi_label': mmi_label,
                 'vix': vix,

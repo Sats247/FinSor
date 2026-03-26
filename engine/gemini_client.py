@@ -239,3 +239,78 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
         'model_used': 'fallback',
         'bias_detected': bias,
     }
+
+
+# ─── Smart Market Regime ───────────────────────────────────────────────────────
+_regime_cache = {'ts': 0, 'data': None}
+
+def get_smart_regime(macro_signals):
+    """
+    Uses Gemini to analyze real-time macro signals and output a JSON dictionary
+    with 'regime' (Bull, Bear, Neutral, Overheated) and a 'reason' string.
+    Caches the response for 15 minutes (900 seconds) to prevent quota exhaustion.
+    """
+    global _regime_cache
+    if time.time() - _regime_cache['ts'] < 900 and _regime_cache['data'] is not None:
+        return _regime_cache['data']
+
+    if not macro_signals:
+        return {'regime': 'Neutral', 'reason': 'Waiting for live market data...'}
+
+    vix = macro_signals.get('india_vix', {}).get('value', 'N/A')
+    nifty = macro_signals.get('nifty50', {}).get('value', 'N/A')
+    nifty_200 = macro_signals.get('nifty_200dma', 'N/A')
+    usd = macro_signals.get('usd_inr', {}).get('value', 'N/A')
+    brent = macro_signals.get('brent', {}).get('value', 'N/A')
+
+    system_prompt = (
+        "You are an expert quantitative macro analyst. Based on the following live Indian market data, "
+        "determine the current Market Regime. You MUST choose exactly one of: ['Bull', 'Bear', 'Neutral', 'Overheated'].\n"
+        "Also provide a 1-sentence analytical reason for your choice (max 20 words).\n"
+        "Return ONLY a valid JSON object in this exact format: {\"regime\": \"...\", \"reason\": \"...\"}"
+    )
+    user_prompt = f"""
+    Nifty 50: {nifty}
+    Nifty 200DMA: {nifty_200}
+    India VIX: {vix}
+    USD/INR: {usd}
+    Brent Crude: {brent}
+    """
+
+    for model_name in [GEMINI_MODEL_PRIMARY, GEMINI_MODEL_FALLBACK]:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_prompt,
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.1,
+                    max_output_tokens=100,
+                    response_mime_type="application/json",
+                )
+            )
+            import json
+            data = json.loads(response.text.strip())
+            
+            # Sanitize regime
+            valid_regimes = ['Bull', 'Bear', 'Neutral', 'Overheated']
+            if data.get('regime') not in valid_regimes:
+                data['regime'] = 'Neutral'
+                
+            _regime_cache = {'ts': time.time(), 'data': data}
+            return data
+            
+        except Exception as e:
+            logger.error(f"Smart Regime failed with {model_name}: {e}")
+            continue
+            
+    # Hardcoded deterministic fallback if AI fails completely (like quota limits)
+    fallback = {'regime': 'Neutral', 'reason': 'AI over limit. Base MMI metrics show neutral bias.'}
+    if vix != 'N/A' and isinstance(vix, (int, float)):
+        if vix > 22:
+            fallback = {'regime': 'Bear', 'reason': 'High implied volatility suggests increased fear and downside risk.'}
+        elif nifty != 'N/A' and isinstance(nifty, (int, float)) and nifty_200 != 'N/A' and isinstance(nifty_200, (int, float)):
+            if nifty > nifty_200 and vix < 15:
+                fallback = {'regime': 'Bull', 'reason': 'Index trending above 200DMA amidst stable volatility.'}
+            
+    return fallback

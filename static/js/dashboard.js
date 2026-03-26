@@ -35,7 +35,14 @@ async function loadRegime() {
   if (!data.success) return;
   const r = data.data;
   const badge = document.getElementById('regime-badge');
-  if (badge) { badge.textContent = r.regime; badge.className = `chip ${r.regime === 'Bear' ? 'chip-loss' : r.regime === 'Overheated' ? 'chip-warning' : 'chip-primary'}`; }
+  if (badge) { 
+    badge.textContent = r.regime; 
+    badge.className = `chip ${r.regime === 'Bear' ? 'chip-loss' : r.regime === 'Overheated' ? 'chip-warning' : 'chip-primary'}`; 
+    if (r.regime_reason) {
+      badge.title = r.regime_reason;
+      badge.style.cursor = 'help';
+    }
+  }
   const dot = document.getElementById('regime-dot');
   if (dot) dot.style.background = r.regime === 'Bear' ? 'var(--loss)' : r.regime === 'Overheated' ? 'var(--warning)' : 'var(--gain)';
   updateMMI(r.mmi_score, r.mmi_label, r.summary);

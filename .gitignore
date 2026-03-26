@@ -1,0 +1,16 @@
+.env
+finsor.db
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
+*.swp
+*.swo
+.pytest_cache/
+.coverage

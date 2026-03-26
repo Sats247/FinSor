@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}FinSor — Portfolio{% endblock %}
+{% block meta_description %}Track your holdings, P&L, tax status, and discover tax-loss harvesting opportunities.{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div><h1 class="card-title" style="font-size:var(--text-2xl);">Portfolio</h1><p style="font-size:var(--text-base);color:var(--on-surface-muted);">Live P&L · Tax Labels · Health Score</p></div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <button class="btn btn-ghost btn-sm" onclick="exportHoldingsCSV()"><i data-lucide="download" width="14" height="14"></i> Export</button>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('csv-file-input').click()">
+      <i data-lucide="upload" width="14" height="14"></i> Import CSV
+    </button>
+    <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
+  </div>
+</div>
+
+<!-- Market Closed Banner -->
+<div class="market-closed-banner" id="market-closed-banner">
+  <i data-lucide="moon" width="16" height="16"></i>
+  <span>Market is currently closed. Prices shown are from the last trading session.</span>
+</div>
+
+<!-- TLH Banner (shown dynamically) -->
+<div id="tlh-banner" style="display:none;" class="tlh-banner">
+  <div class="tlh-banner-label">Tax-Loss Harvesting Opportunity</div>
+  <div class="tlh-savings" id="tlh-savings">₹0</div>
+  <p class="tlh-body" id="tlh-body"></p>
+</div>
+
+<div class="port-grid">
+  <!-- Holdings Table -->
+  <div>
+    <div class="table-wrap" id="holdings-table-wrap">
+      <!-- Upload Zone (shown if no holdings) -->
+      <div id="upload-zone" style="padding:20px;">
+        <div class="csv-upload-zone" id="csv-drop-zone"
+             ondragover="event.preventDefault();this.classList.add('drag-active')"
+             ondragleave="this.classList.remove('drag-active')"
+             ondrop="handleDrop(event)">
+          <i data-lucide="file-text" width="36" height="36" class="upload-icon"></i>
+          <div class="upload-title">Drag & drop your portfolio CSV</div>
+          <p style="font-size:var(--text-sm);color:var(--on-surface-variant);">Required columns: ticker, quantity, purchase_date, type, name</p>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('csv-file-input').click()">Choose File</button>
+          <a href="/static/sample_portfolio.csv" style="font-size:var(--text-sm);color:var(--primary);" download>Download Sample CSV</a>
+        </div>
+      </div>
+
+      <!-- Holdings Table (shown when loaded) -->
+      <div id="holdings-section" style="display:none;">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:var(--font-display);font-weight:600;font-size:var(--text-lg);">Holdings</span>
+          <div style="display:flex;gap:8px;">
+            <select class="input-field" id="filter-type" style="height:36px;font-size:var(--text-sm);" onchange="renderHoldings()">
+              <option value="">All Types</option>
+              <option value="stock">Stocks</option>
+              <option value="etf">ETFs</option>
+              <option value="mf">Mutual Funds</option>
+            </select>
+            <select class="input-field" id="sort-by" style="height:36px;font-size:var(--text-sm);" onchange="renderHoldings()">
+              <option value="name">Sort by Name</option>
+              <option value="pnl_pct">Sort by P&L %</option>
+              <option value="current_value">Sort by Value</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="holdings-table">
+            <thead>
+              <tr>
+                <th>Security</th>
+                <th>Type</th>
+                <th class="right">Qty</th>
+                <th class="right">Buy Price</th>
+                <th class="right">CMP</th>
+                <th class="right">P&L</th>
+                <th>Tax</th>
+                <th class="right">Days Held</th>
+              </tr>
+            </thead>
+            <tbody id="holdings-tbody"></tbody>
+          </table>
+        </div>
+        <div style="padding:14px 20px;display:flex;justify-content:space-between;background:var(--surface-low);">
+          <div><span style="font-size:var(--text-sm);color:var(--on-surface-muted);">Total Invested</span><span style="font-family:var(--font-display);font-weight:600;margin-left:12px;" id="total-invested">—</span></div>
+          <div><span style="font-size:var(--text-sm);color:var(--on-surface-muted);">Current Value</span><span style="font-family:var(--font-display);font-weight:600;margin-left:12px;" id="total-current">—</span></div>
+          <div><span style="font-size:var(--text-sm);color:var(--on-surface-muted);">Total P&L</span><span class="chip" id="total-pnl-chip" style="margin-left:12px;">—</span></div>
+          <div><span style="font-size:var(--text-sm);color:var(--on-surface-muted);">Days to 31 Mar</span><span style="font-family:var(--font-display);font-weight:600;margin-left:12px;" id="days-march31">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <!-- Allocation Donut -->
+    <div class="card" style="padding:20px;">
+      <div class="card-header"><span class="label-xs">Allocation by Type</span></div>
+      <div class="chart-container" style="height:180px;"><canvas id="allocation-chart"></canvas></div>
+    </div>
+
+    <!-- Sector Breakdown -->
+    <div class="card" style="padding:20px;" id="sector-card">
+      <div class="card-header" style="margin-bottom:12px;"><span class="label-xs">Sector Breakdown</span></div>
+      <div id="sector-bars">
+        <span style="color:var(--on-surface-muted);font-size:var(--text-sm);">Load portfolio to see sectors.</span>
+      </div>
+    </div>
+
+    <!-- TLH Opportunities -->
+    <div class="card" style="padding:20px;" id="tlh-card">
+      <div class="card-header" style="margin-bottom:12px;">
+        <span class="label-xs">TLH Opportunities</span>
+        <span title="Tax-loss harvesting — realise STCG losses before 31 March" style="cursor:help;color:var(--on-surface-muted);">
+          <i data-lucide="info" width="14" height="14"></i>
+        </span>
+      </div>
+      <div id="tlh-list"><span style="color:var(--on-surface-muted);font-size:var(--text-sm);">No TLH opportunities detected.</span></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/portfolio.js"></script>
+{% endblock %}

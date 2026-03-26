@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}FinSor — Research Tools{% endblock %}
+{% block meta_description %}Live TradingView charts, financial calculators, and stock fundamentals for Indian markets.{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div><h1 class="card-title" style="font-size:var(--text-2xl);">Research Tools</h1><p style="color:var(--on-surface-muted);font-size:var(--text-base);">TradingView · Calculator · Fundamentals</p></div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <div class="input-with-icon" style="position:relative;">
+      <i data-lucide="search" width="16" height="16" class="input-icon-left"></i>
+      <input type="text" class="input-field" id="tools-search" placeholder="Search — RELIANCE, HDFCBANK..." style="padding-left:36px;width:280px;" oninput="searchStock()">
+      <div class="nav-search-dropdown" id="tools-search-dropdown" style="top:calc(100% + 4px);left:0;right:0;z-index:200;"></div>
+    </div>
+    <select class="input-field" id="chart-interval" style="height:44px;font-size:var(--text-sm);" onchange="updateChart()">
+      <option value="D">Daily</option>
+      <option value="W">Weekly</option>
+      <option value="M">Monthly</option>
+    </select>
+  </div>
+</div>
+
+<!-- TradingView Chart -->
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:20px;">
+  <div class="tv-chart-wrap">
+    <div id="tv-widget" style="height:100%;"></div>
+  </div>
+  <!-- Fundamentals Strip -->
+  <div class="fundamentals-strip" id="fundamentals-strip">
+    <div class="fundamentals-item"><div class="fundamentals-label">P/E Ratio</div><div class="fundamentals-value" id="f-pe">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">P/B Ratio</div><div class="fundamentals-value" id="f-pb">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">EPS</div><div class="fundamentals-value" id="f-eps">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">Market Cap (Cr)</div><div class="fundamentals-value" id="f-mcap">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">52W High</div><div class="fundamentals-value" id="f-52h">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">52W Low</div><div class="fundamentals-value" id="f-52l">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">Dividend Yield</div><div class="fundamentals-value" id="f-div">—</div></div>
+    <div class="fundamentals-item"><div class="fundamentals-label">Sector</div><div class="fundamentals-value" id="f-sector">—</div></div>
+  </div>
+</div>
+
+<!-- Calculator Row -->
+<div class="tools-calc-grid">
+  <!-- Calculator -->
+  <div class="card" style="padding:20px;">
+    <h2 class="card-title" style="margin-bottom:4px;">Financial Calculator</h2>
+    <p class="card-subtitle" style="margin-bottom:12px;">Run SIP, Lump Sum, CAGR, or Goal Seek</p>
+    <div class="calc-tabs">
+      <button class="calc-tab active" onclick="switchCalcTab('sip', this)" id="ctab-sip">SIP</button>
+      <button class="calc-tab" onclick="switchCalcTab('lump', this)" id="ctab-lump">Lump Sum</button>
+      <button class="calc-tab" onclick="switchCalcTab('cagr', this)" id="ctab-cagr">CAGR</button>
+      <button class="calc-tab" onclick="switchCalcTab('goalseek', this)" id="ctab-goal">Goal Seek</button>
+    </div>
+
+    <!-- SIP -->
+    <div id="calc-sip" class="calc-panel" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="input-wrapper"><label class="input-label">Monthly SIP (₹)</label><input type="number" class="input-field" id="sip-pmt" value="5000" min="100"></div>
+      <div class="input-wrapper"><label class="input-label">Rate of Return (%)</label><input type="number" class="input-field" id="sip-rate" value="12" min="0.1" step="0.1"></div>
+      <div class="input-wrapper"><label class="input-label">Duration (Years)</label><input type="number" class="input-field" id="sip-years" value="10" min="1" max="40"></div>
+    </div>
+
+    <!-- Lump Sum -->
+    <div id="calc-lump" class="calc-panel" style="display:none;flex-direction:column;gap:12px;">
+      <div class="input-wrapper"><label class="input-label">Principal (₹)</label><input type="number" class="input-field" id="lump-pv" value="100000" min="1000"></div>
+      <div class="input-wrapper"><label class="input-label">Rate of Return (%)</label><input type="number" class="input-field" id="lump-rate" value="7" min="0.1" step="0.1"></div>
+      <div class="input-wrapper"><label class="input-label">Duration (Years)</label><input type="number" class="input-field" id="lump-years" value="5" min="1"></div>
+    </div>
+
+    <!-- CAGR -->
+    <div id="calc-cagr" class="calc-panel" style="display:none;flex-direction:column;gap:12px;">
+      <div class="input-wrapper"><label class="input-label">Start Value (₹)</label><input type="number" class="input-field" id="cagr-start" value="100000"></div>
+      <div class="input-wrapper"><label class="input-label">End Value (₹)</label><input type="number" class="input-field" id="cagr-end" value="200000"></div>
+      <div class="input-wrapper"><label class="input-label">Years</label><input type="number" class="input-field" id="cagr-years" value="5" min="1"></div>
+    </div>
+
+    <!-- Goal Seek -->
+    <div id="calc-goalseek" class="calc-panel" style="display:none;flex-direction:column;gap:12px;">
+      <div class="input-wrapper"><label class="input-label">Target Corpus (₹)</label><input type="number" class="input-field" id="goal-fv" value="1000000" min="10000"></div>
+      <div class="input-wrapper"><label class="input-label">Rate of Return (%)</label><input type="number" class="input-field" id="goal-rate" value="12" step="0.1"></div>
+      <div class="input-wrapper"><label class="input-label">Years to Goal</label><input type="number" class="input-field" id="goal-years" value="10" min="1"></div>
+    </div>
+
+    <button class="btn btn-primary w-full" style="margin-top:12px;justify-content:center;" onclick="runCalculator()">
+      <i data-lucide="calculator" width="16" height="16"></i> Calculate
+    </button>
+    <div id="calc-result" class="calc-result" style="display:none;">
+      <div class="calc-result-label" id="calc-result-label">Result</div>
+      <div class="calc-result-value" id="calc-result-value">₹0</div>
+      <div class="calc-result-sub" id="calc-result-sub"></div>
+    </div>
+  </div>
+
+  <!-- Sensitivity Chart -->
+  <div class="card" style="padding:20px;">
+    <h2 class="card-title" style="margin-bottom:4px;">Sensitivity Analysis</h2>
+    <p class="card-subtitle" style="margin-bottom:12px;">Which factor impacts your corpus most?</p>
+    <div class="chart-container" style="height:180px;"><canvas id="sensitivity-chart"></canvas></div>
+    <div id="sensitivity-note" style="margin-top:12px;font-size:var(--text-sm);color:var(--on-surface-variant);">Run a SIP calculation to see sensitivity.</div>
+  </div>
+
+  <!-- Inflation Adjuster -->
+  <div class="card" style="padding:20px;">
+    <h2 class="card-title" style="margin-bottom:4px;">Real Return Visualiser</h2>
+    <p class="card-subtitle" style="margin-bottom:16px;">See purchasing power erosion over time</p>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="input-wrapper"><label class="input-label">Nominal Return (%)</label><input type="number" class="input-field" id="real-nominal" value="12" step="0.1"></div>
+      <div class="input-wrapper"><label class="input-label">Inflation Rate (%)</label><input type="number" class="input-field" id="real-inflation" value="6.5" step="0.1"></div>
+      <button class="btn btn-secondary w-full" style="justify-content:center;" onclick="calcRealReturn()">
+        <i data-lucide="trending-up" width="16" height="16"></i> Calculate Real Return
+      </button>
+      <div id="real-result" class="calc-result" style="display:none;">
+        <div class="calc-result-label">Real Return Rate</div>
+        <div class="calc-result-value" id="real-result-val">0.00%</div>
+        <div class="calc-result-sub" id="real-result-sub"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/tools.js"></script>
+{% endblock %}

@@ -1,0 +1,9 @@
+flask
+flask-cors
+google-genai
+yfinance
+pandas
+requests
+feedparser
+python-dotenv
+pytest

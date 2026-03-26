@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FinSor — AI Investment Research{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}FinSor is an AI-powered investment research and advisory platform for Indian retail investors.{% endblock %}">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://s3.tradingview.com/tv.js" defer></script>
+</head>
+<body>
+  <div class="page-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-label">Research Terminal</div>
+        <div class="sidebar-sub">AI-Powered Insights</div>
+        <nav class="nav-items">
+          <a href="/dashboard" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" id="nav-dashboard">
+            <i data-lucide="layout-dashboard" width="20" height="20"></i> Dashboard
+          </a>
+          <a href="/portfolio" class="nav-item {% if request.endpoint == 'portfolio' %}active{% endif %}" id="nav-portfolio">
+            <i data-lucide="briefcase" width="20" height="20"></i> Portfolio
+          </a>
+          <a href="/simulator" class="nav-item {% if request.endpoint == 'simulator' %}active{% endif %}" id="nav-simulator">
+            <i data-lucide="sliders" width="20" height="20"></i> Simulator
+          </a>
+          <a href="/tools" class="nav-item {% if request.endpoint == 'tools' %}active{% endif %}" id="nav-tools">
+            <i data-lucide="wrench" width="20" height="20"></i> Tools
+          </a>
+          <a href="/watchlist" class="nav-item {% if request.endpoint == 'watchlist' %}active{% endif %}" id="nav-watchlist">
+            <i data-lucide="bookmark" width="20" height="20"></i> Watchlist
+          </a>
+          <a href="/sips" class="nav-item {% if request.endpoint == 'sips' %}active{% endif %}" id="nav-sips">
+            <i data-lucide="pie-chart" width="20" height="20"></i> ETF SIPs
+          </a>
+          <a href="/status" class="nav-item {% if request.endpoint == 'status' %}active{% endif %}" id="nav-status">
+            <i data-lucide="activity" width="20" height="20"></i> Status
+          </a>
+        </nav>
+      </div>
+      <div class="sidebar-footer">
+        <div class="market-status" id="sidebar-market-status">
+          <div class="live-dot pulse-dot" id="sidebar-live-dot"></div>
+          <div>
+            <div class="market-status-text">
+              <span class="market-status-label" id="sidebar-status-label">LIVE</span>
+            </div>
+            <div class="market-nifty" id="sidebar-nifty">—</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Area -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+      <!-- Top Nav -->
+      <nav class="topnav">
+        <a href="/dashboard" style="text-decoration:none;">
+          <span class="wordmark"><span class="wordmark-fin">Fin</span><span class="wordmark-sor">Sor</span></span>
+        </a>
+        <div class="nav-search-wrap">
+          <i data-lucide="search" width="16" height="16" class="nav-search-icon"></i>
+          <input type="text" class="nav-search" id="nav-search-input" placeholder="Search any stock — RELIANCE, INFY, TCS..." autocomplete="off">
+          <div class="nav-search-dropdown" id="nav-search-dropdown"></div>
+        </div>
+        <div class="topnav-right">
+          <div class="notif-wrapper" id="notif-wrapper">
+            <i data-lucide="bell" width="20" height="20" style="color:var(--on-surface-variant);display:block;"></i>
+            <div class="notif-dot" id="notif-dot"></div>
+            <span class="notif-badge" id="notif-badge"></span>
+            <div class="notif-dropdown" id="notif-dropdown"></div>
+          </div>
+          <div class="user-pill" id="user-pill" style="position:relative;">
+            <div class="user-avatar" id="user-avatar">{{ user.name[0] if user.name else 'U' }}</div>
+            <span class="user-name" id="user-name-label">{{ user.name.split(' ')[0] if user.name else 'User' }}</span>
+            <i data-lucide="chevron-down" width="14" height="14" style="color:var(--on-surface-muted)"></i>
+            <div class="user-menu" id="user-menu">
+              <div class="user-menu-item">
+                <i data-lucide="shield" width="14" height="14"></i>
+                <span class="chip chip-primary" style="font-size:11px;">{{ user.risk_category or 'Unknown' }}</span>
+              </div>
+              <a href="/login" class="user-menu-item" style="text-decoration:none;">
+                <i data-lucide="log-out" width="14" height="14"></i> Switch User
+              </a>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Page Content -->
+      <main class="main-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/js/main.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

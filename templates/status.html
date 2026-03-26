@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}FinSor — System Status{% endblock %}
+{% block meta_description %}Live diagnostics for all FinSor data sources — yfinance, AMFI, Groq, Polymarket, Google News, and SQLite.{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div><h1 class="card-title" style="font-size:var(--text-2xl);">System Status</h1><p style="color:var(--on-surface-muted);font-size:var(--text-base);">Live diagnostics for all data sources</p></div>
+  <button class="btn btn-primary btn-sm" onclick="runChecks()"><i data-lucide="refresh-cw" width="14" height="14" id="check-icon"></i> Run All Checks</button>
+</div>
+
+<!-- Summary Banner (before running) -->
+<div id="status-loading" style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface-low);border-radius:12px;margin-bottom:20px;">
+  <i data-lucide="activity" width="20" height="20" style="color:var(--primary);"></i>
+  <span style="font-family:var(--font-display);font-size:var(--text-md);color:var(--on-surface);">Click "Run All Checks" to run the full diagnostics suite.</span>
+</div>
+
+<div class="status-grid" id="status-grid">
+  <!-- yfinance -->
+  <div class="card status-card" id="sc-yfinance">
+    <div class="status-card-header">
+      <span class="status-card-title">yfinance (market data)</span>
+      <div class="status-icon" id="si-yfinance"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-yfinance">Not checked yet</p>
+    <p class="status-latency" id="sl-yfinance"></p>
+  </div>
+
+  <!-- AMFI -->
+  <div class="card status-card" id="sc-amfi">
+    <div class="status-card-header">
+      <span class="status-card-title">AMFI (NAV feed)</span>
+      <div class="status-icon" id="si-amfi"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-amfi">Not checked yet</p>
+    <p class="status-latency" id="sl-amfi"></p>
+  </div>
+
+  <!-- Polymarket -->
+  <div class="card status-card" id="sc-polymarket">
+    <div class="status-card-header">
+      <span class="status-card-title">Polymarket (predictions)</span>
+      <div class="status-icon" id="si-polymarket"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-polymarket">Not checked yet</p>
+    <p class="status-latency" id="sl-polymarket"></p>
+  </div>
+
+  <!-- Metaculus -->
+  <div class="card status-card" id="sc-metaculus">
+    <div class="status-card-header">
+      <span class="status-card-title">Metaculus (research signals)</span>
+      <div class="status-icon" id="si-metaculus"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-metaculus">Not checked yet</p>
+    <p class="status-latency" id="sl-metaculus"></p>
+  </div>
+
+  <!-- Google News -->
+  <div class="card status-card" id="sc-google_news">
+    <div class="status-card-header">
+      <span class="status-card-title">Google News (headlines)</span>
+      <div class="status-icon" id="si-google_news"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-google_news">Not checked yet</p>
+    <p class="status-latency" id="sl-google_news"></p>
+  </div>
+
+  <!-- Groq -->
+  <div class="card status-card" id="sc-groq">
+    <div class="status-card-header">
+      <span class="status-card-title">Groq (AI Genie)</span>
+      <div class="status-icon" id="si-groq"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-groq">Not checked yet</p>
+    <p class="status-latency" id="sl-groq"></p>
+  </div>
+
+  <!-- SQLite -->
+  <div class="card status-card" id="sc-sqlite">
+    <div class="status-card-header">
+      <span class="status-card-title">SQLite (database)</span>
+      <div class="status-icon" id="si-sqlite"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-sqlite">Not checked yet</p>
+    <p class="status-latency" id="sl-sqlite"></p>
+  </div>
+
+  <!-- Risk Engine -->
+  <div class="card status-card" id="sc-risk_engine">
+    <div class="status-card-header">
+      <span class="status-card-title">Risk Engine (calc.py)</span>
+      <div class="status-icon" id="si-risk_engine"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+    </div>
+    <p class="status-detail" id="sd-risk_engine">Not checked yet</p>
+    <p class="status-latency" id="sl-risk_engine"></p>
+  </div>
+</div>
+
+<!-- All-Pass Banner -->
+<div class="checklist-success-banner" id="all-pass-banner">
+  <i data-lucide="circle-check" width="28" height="28" style="color:var(--gain);"></i>
+  <span class="checklist-success-text">All systems are operational. FinSor is running at 100%.</span>
+</div>
+
+<!-- Onboarding Checklist -->
+<div class="card" style="margin-top:24px;padding:24px;">
+  <h2 class="card-title" style="margin-bottom:4px;">Developer Checklist</h2>
+  <p class="card-subtitle" style="margin-bottom:20px;">Confirm all build phases are complete</p>
+  <div id="checklist-items">
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">calc.py — 5/5 pytest tests passing</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">app.py — Flask server starts without errors</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">GROQ_API_KEY and FLASK_SECRET_KEY loaded from .env</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">yfinance — Nifty 50 prices loading on dashboard</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">Groq Genie — responding with valid text</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">Portfolio CSV import working end-to-end</span>
+    </div>
+    <div class="checklist-item" onclick="toggleCheck(this)">
+      <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
+      <span class="checklist-item-text">Price alerts triggering and creating notifications</span>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/status.js"></script>
+{% endblock %}

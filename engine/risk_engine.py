@@ -123,10 +123,10 @@ def apply_macro_adjustment(risk_category, macro_signals):
     Returns (adjusted_category, [reason_strings])
     """
     if not macro_signals:
-        return risk_category, []
+        return risk_category or 'Balanced', []
 
     adjustments = []
-    adjusted = risk_category
+    adjusted = risk_category if risk_category in RISK_CATEGORIES else 'Balanced'
 
     vix = macro_signals.get('india_vix', {}).get('value')
     nifty = macro_signals.get('nifty50', {}).get('value')

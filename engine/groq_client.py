@@ -1,6 +1,10 @@
 """
-gemini_client.py — Gemini RAG pipeline with cognitive bias detection, context assembly,
+groq_client.py — Groq RAG pipeline with cognitive bias detection, context assembly,
 retry logic, and audit logging. The model NEVER generates financial numbers.
+
+Models used:
+  - call_genie        : llama-3.3-70b-versatile  (primary) → llama-3.1-8b-instant (fallback)
+  - get_smart_regime  : llama-3.1-8b-instant      (fast JSON, no chat needed)
 """
 
 import html as html_module
@@ -8,22 +12,23 @@ import json
 import logging
 import time
 
-from google import genai
+from groq import Groq
 
 from config import (
-    GEMINI_API_KEY,
-    GEMINI_MODEL_CHAIN,
+    GROQ_API_KEY,
+    GROQ_MODEL_CHAIN,
+    GROQ_MODEL_REGIME,
     MAX_CHAT_HISTORY,
     MAX_INPUT_LENGTH,
 )
 
 logger = logging.getLogger(__name__)
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
 
 # ─── System Prompt ─────────────────────────────────────────────────────────────
 
-GEMINI_SYSTEM_PROMPT = """You are FinSor Genie, an AI-powered investment research assistant for Indian retail investors. You operate within strict guidelines:
+GENIE_SYSTEM_PROMPT = """You are FinSor Genie, an AI-powered investment research assistant for Indian retail investors. You operate within strict guidelines:
 
 RULES:
 1. NEVER generate specific numbers, projections, NAV values, or allocation percentages. All numerical data comes from the FinSor calculation engine. Your role is to explain what the math decided, not to generate new numbers.
@@ -166,11 +171,11 @@ Monthly Investable: ₹{user_data.get('monthly_investable', 'Unknown')}
 """
 
 
-# ─── Gemini API Call ───────────────────────────────────────────────────────────
+# ─── Groq API Call ─────────────────────────────────────────────────────────────
 
 def call_genie(user_message, conversation_history, macro_context, user_profile, user_id=None, db_conn=None):
     """
-    Main Gemini RAG call.
+    Main Groq RAG call.
     1. Sanitize input
     2. Detect cognitive bias
     3. Build system prompt with injected context
@@ -192,30 +197,27 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
         for m in capped_history
     ]) if capped_history else "No prior conversation."
 
-    # Assemble system prompt — kept separate from user message
-    system_prompt = GEMINI_SYSTEM_PROMPT.format(
+    # Assemble system prompt
+    system_prompt = GENIE_SYSTEM_PROMPT.format(
         macro_context=macro_context or "Live market data temporarily unavailable.",
         user_profile=user_profile or "User profile not available.",
         conversation_history=history_str,
     ) + bias_instruction
 
-    # User-facing content only (no system prompt concatenation)
-    user_content = f"USER MESSAGE: {user_message}"
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"USER MESSAGE: {user_message}"},
+    ]
 
-    for model_name in GEMINI_MODEL_CHAIN:
+    for model_name in GROQ_MODEL_CHAIN:
         try:
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=model_name,
-                contents=user_content,
-                # FIX: system_instruction is passed via GenerateContentConfig,
-                # NOT prepended to contents. This is required by the google-genai SDK.
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.7,
-                    max_output_tokens=1024,
-                ),
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1024,
             )
-            text = response.text
+            text = response.choices[0].message.content
 
             # Audit log
             if db_conn and user_id:
@@ -237,12 +239,11 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
             }
 
         except Exception as e:
-            # Log the full exception so you can actually debug it
-            logger.error(f"Gemini call failed with {model_name}: {type(e).__name__}: {e}")
+            logger.error(f"Groq call failed with {model_name}: {type(e).__name__}: {e}")
             continue
 
-    # Both models failed
-    logger.error("Both primary and fallback Gemini models failed. Returning static fallback.")
+    # All models failed
+    logger.error("All Groq models failed. Returning static fallback.")
     return {
         'response': FALLBACK_RESPONSE,
         'model_used': 'fallback',
@@ -255,8 +256,8 @@ _regime_cache = {'ts': 0, 'data': None}
 
 def get_smart_regime(macro_signals):
     """
-    Uses Gemini to analyze real-time macro signals and output a JSON dictionary
-    with 'regime' (Bull, Bear, Neutral, Overheated) and a 'reason' string.
+    Uses Groq (llama-3.1-8b-instant) to analyze real-time macro signals and output
+    a JSON dict with 'regime' (Bull, Bear, Neutral, Overheated) and a 'reason' string.
     Caches the response for 15 minutes (900 seconds) to prevent quota exhaustion.
     """
     global _regime_cache
@@ -286,33 +287,32 @@ def get_smart_regime(macro_signals):
         f"Brent Crude: {brent}"
     )
 
-    for model_name in GEMINI_MODEL_CHAIN:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=user_prompt,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.1,
-                    max_output_tokens=100,
-                    response_mime_type="application/json",
-                ),
-            )
-            data = json.loads(response.text.strip())
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL_REGIME,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=100,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content.strip()
+        data = json.loads(raw)
 
-            # Sanitize regime
-            valid_regimes = ['Bull', 'Bear', 'Neutral', 'Overheated']
-            if data.get('regime') not in valid_regimes:
-                data['regime'] = 'Neutral'
+        # Sanitize regime value
+        valid_regimes = ['Bull', 'Bear', 'Neutral', 'Overheated']
+        if data.get('regime') not in valid_regimes:
+            data['regime'] = 'Neutral'
 
-            _regime_cache = {'ts': time.time(), 'data': data}
-            return data
+        _regime_cache = {'ts': time.time(), 'data': data}
+        return data
 
-        except Exception as e:
-            logger.error(f"Smart Regime failed with {model_name}: {type(e).__name__}: {e}")
-            continue
+    except Exception as e:
+        logger.error(f"Smart Regime (Groq) failed: {type(e).__name__}: {e}")
 
-    # Deterministic fallback if AI fails completely (e.g. quota limits)
+    # Deterministic fallback if AI fails completely
     fallback = {'regime': 'Neutral', 'reason': 'AI over limit. Base MMI metrics show neutral bias.'}
     if vix != 'N/A' and isinstance(vix, (int, float)):
         if vix > 22:

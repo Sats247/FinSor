@@ -23,8 +23,8 @@ from flask_cors import CORS
 # ─── Bootstrap ─────────────────────────────────────────────────────────────────
 load_dotenv()
 
-if not os.environ.get('GEMINI_API_KEY'):
-    raise RuntimeError("GEMINI_API_KEY is not set in .env")
+if not os.environ.get('GROQ_API_KEY'):
+    raise RuntimeError("GROQ_API_KEY is not set in .env")
 if not os.environ.get('FLASK_SECRET_KEY'):
     raise RuntimeError("FLASK_SECRET_KEY is not set in .env")
 
@@ -38,8 +38,8 @@ logger = logging.getLogger(__name__)
 
 # ─── Engine Imports ─────────────────────────────────────────────────────────────
 from engine import calc, data_fetch, risk_engine
-from engine.gemini_client import (build_macro_context, build_user_profile_context,
-                                   call_genie)
+from engine.groq_client import (build_macro_context, build_user_profile_context,
+                                 call_genie)
 from engine.sip_model import get_model as get_sip_model
 
 # ─── Data Loading ──────────────────────────────────────────────────────────────
@@ -364,7 +364,7 @@ def api_regime():
         nifty = macro.get('nifty50', {}).get('value')
         nifty_200dma = macro.get('nifty_200dma')
 
-        from engine.gemini_client import get_smart_regime
+        from engine.groq_client import get_smart_regime
         smart = get_smart_regime(macro)
         regime = smart.get('regime', 'Neutral')
         regime_reason = smart.get('reason', 'Market mixed.')
@@ -502,7 +502,7 @@ def api_genie():
         db.close()
 
         if result.get('model_used') == 'fallback':
-            return jsonify({'success': False, 'error': result['response'], 'code': 'GEMINI_UNAVAILABLE'})
+            return jsonify({'success': False, 'error': result['response'], 'code': 'GROQ_UNAVAILABLE'})
 
         return jsonify({
             'success': True,
@@ -517,7 +517,7 @@ def api_genie():
         })
     except Exception as e:
         logger.error(f"api_genie error: {e}")
-        return error_json('Our AI advisor is momentarily unavailable. Please try again in a few seconds.', 'GEMINI_UNAVAILABLE')
+        return error_json('Our AI advisor is momentarily unavailable. Please try again in a few seconds.', 'GROQ_UNAVAILABLE')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1141,17 +1141,17 @@ def api_status_check():
     except Exception as e:
         results['google_news'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
 
-    # Gemini
+    # Groq
     t0 = time.time()
     try:
-        from engine.gemini_client import call_genie
+        from engine.groq_client import call_genie
         resp = call_genie('Say hello in 10 words.', [], 'Test context', 'Test profile')
         words = len(resp.get('response', '').split())
-        results['gemini'] = {'ok': words > 3,
-                             'detail': f'Response: {words} words. Model: {resp.get("model_used")}',
-                             'latency_ms': round((time.time() - t0) * 1000)}
+        results['groq'] = {'ok': words > 3,
+                           'detail': f'Response: {words} words. Model: {resp.get("model_used")}',
+                           'latency_ms': round((time.time() - t0) * 1000)}
     except Exception as e:
-        results['gemini'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
+        results['groq'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
 
     # SQLite
     t0 = time.time()

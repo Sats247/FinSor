@@ -3,24 +3,28 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY')
-GEMINI_MODEL_PRIMARY   = 'gemini-2.5-flash'
-GEMINI_MODEL_FALLBACK  = 'gemini-2.0-flash'
-# Ordered list tried by call_genie / get_smart_regime if primary is exhausted
-GEMINI_MODEL_CHAIN = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-flash-latest',
+
+# Primary chat model — 70B for quality answers, still very fast on Groq hardware
+GROQ_MODEL_PRIMARY  = 'llama-3.3-70b-versatile'
+# Fallback chat model — 8B instant, fires in ~200ms
+GROQ_MODEL_FALLBACK = 'llama-3.1-8b-instant'
+# Model chain tried in order by call_genie
+GROQ_MODEL_CHAIN = [
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
 ]
+# Dedicated fast model for regime JSON detection (pure speed, small output)
+GROQ_MODEL_REGIME = 'llama-3.1-8b-instant'
+
 DB_PATH = 'finsor.db'
-CACHE_TTL_MACRO = 60        # seconds
-CACHE_TTL_FUNDS = 300       # seconds
-CACHE_TTL_POLYMARKET = 180  # seconds
-CACHE_TTL_METACULUS = 600   # seconds
-CACHE_TTL_NEWS = 120        # seconds
-MAX_CHAT_HISTORY = 6        # messages
-MAX_INPUT_LENGTH = 500      # characters
-NSE_MARKET_OPEN = '09:15'
-NSE_MARKET_CLOSE = '15:30'
+CACHE_TTL_MACRO      = 60        # seconds
+CACHE_TTL_FUNDS      = 300       # seconds
+CACHE_TTL_POLYMARKET = 180       # seconds
+CACHE_TTL_METACULUS  = 600       # seconds
+CACHE_TTL_NEWS       = 120       # seconds
+MAX_CHAT_HISTORY     = 6         # messages
+MAX_INPUT_LENGTH     = 500       # characters
+NSE_MARKET_OPEN      = '09:15'
+NSE_MARKET_CLOSE     = '15:30'

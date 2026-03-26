@@ -1,5 +1,5 @@
 /* status.js */
-const SERVICES = ['yfinance', 'amfi', 'polymarket', 'metaculus', 'google_news', 'gemini', 'sqlite', 'risk_engine'];
+const SERVICES = ['yfinance', 'amfi', 'polymarket', 'metaculus', 'google_news', 'groq', 'sqlite', 'risk_engine'];
 let allPassed = false;
 
 async function runChecks() {

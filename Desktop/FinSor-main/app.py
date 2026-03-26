@@ -23,8 +23,8 @@ from flask_cors import CORS
 # ─── Bootstrap ─────────────────────────────────────────────────────────────────
 load_dotenv()
 
-if not os.environ.get('GEMINI_API_KEY'):
-    raise RuntimeError("GEMINI_API_KEY is not set in .env")
+if not os.environ.get('GROQ_API_KEY'):
+    raise RuntimeError("GROQ_API_KEY is not set in .env")
 if not os.environ.get('FLASK_SECRET_KEY'):
     raise RuntimeError("FLASK_SECRET_KEY is not set in .env")
 
@@ -38,8 +38,8 @@ logger = logging.getLogger(__name__)
 
 # ─── Engine Imports ─────────────────────────────────────────────────────────────
 from engine import calc, data_fetch, risk_engine
-from engine.gemini_client import (build_macro_context, build_user_profile_context,
-                                   call_genie)
+from engine.groq_client import (build_macro_context, build_user_profile_context,
+                                 call_genie)
 from engine.sip_model import get_model as get_sip_model
 
 # ─── Data Loading ──────────────────────────────────────────────────────────────
@@ -364,7 +364,7 @@ def api_regime():
         nifty = macro.get('nifty50', {}).get('value')
         nifty_200dma = macro.get('nifty_200dma')
 
-        from engine.gemini_client import get_smart_regime
+        from engine.groq_client import get_smart_regime
         smart = get_smart_regime(macro)
         regime = smart.get('regime', 'Neutral')
         regime_reason = smart.get('reason', 'Market mixed.')
@@ -502,7 +502,7 @@ def api_genie():
         db.close()
 
         if result.get('model_used') == 'fallback':
-            return jsonify({'success': False, 'error': result['response'], 'code': 'GEMINI_UNAVAILABLE'})
+            return jsonify({'success': False, 'error': result['response'], 'code': 'GROQ_UNAVAILABLE'})
 
         return jsonify({
             'success': True,
@@ -517,7 +517,7 @@ def api_genie():
         })
     except Exception as e:
         logger.error(f"api_genie error: {e}")
-        return error_json('Our AI advisor is momentarily unavailable. Please try again in a few seconds.', 'GEMINI_UNAVAILABLE')
+        return error_json('Our AI advisor is momentarily unavailable. Please try again in a few seconds.', 'GROQ_UNAVAILABLE')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -562,20 +562,18 @@ def api_portfolio_upload():
         file = request.files['file']
         content = file.read().decode('utf-8')
         reader = csv.DictReader(io.StringIO(content))
-        # Map headers defensibly to handle both template formats and exported formats
-        original_fields = reader.fieldnames or []
-        n_fields = {str(f).strip().lower(): str(f) for f in original_fields if f}
+        # Normalize column names to lowercase and strip spaces for easier mapping
+        fieldnames = [str(f).strip().lower() for f in reader.fieldnames or []]
+        reader.fieldnames = fieldnames
 
-        t_col = n_fields.get('ticker', n_fields.get('symbol'))
-        n_col = n_fields.get('name', n_fields.get('fund_name'))
-        q_col = n_fields.get('quantity', n_fields.get('qty'))
-        type_col = n_fields.get('type', n_fields.get('asset_type'))
-        p_price_col = n_fields.get('purchase_price', n_fields.get('buy price', n_fields.get('buy_price')))
-        p_date_col = n_fields.get('purchase_date', n_fields.get('purchase date'))
-        days_held_col = n_fields.get('days held', n_fields.get('days_held'))
+        has_ticker = 'ticker' in fieldnames
+        has_quantity = 'quantity' in fieldnames
+        has_name = 'name' in fieldnames
+        has_type = 'type' in fieldnames
+        has_date_or_days = 'purchase_date' in fieldnames or 'days held' in fieldnames
 
-        if not t_col or not q_col:
-            return error_json('CSV missing required columns (ticker, quantity). Exported formats are supported.', 'CSV_INVALID')
+        if not (has_ticker and has_quantity and has_name and has_type and has_date_or_days):
+            return error_json('CSV missing required columns: purchase_date or days held, name, type, quantity, ticker', 'CSV_INVALID')
 
         db = get_db()
         db.execute('DELETE FROM holdings WHERE user_id = ?', (user_id,))
@@ -583,37 +581,31 @@ def api_portfolio_upload():
         imported, skipped, skipped_rows = 0, 0, []
         holdings_raw = []
 
-        from datetime import timedelta
         for i, row in enumerate(reader):
             if i >= 200:
                 break
             try:
-                ticker = sanitize(row.get(t_col, '').strip(), 30)
-                name = sanitize(row.get(n_col, '').strip() if n_col else ticker, 100)
-                quantity = float(row.get(q_col, 0))
-                h_type = (row.get(type_col, 'stock') if type_col else 'stock').strip().lower()
-                if h_type not in ('stock', 'etf', 'mf'):
-                    h_type = 'stock'
-
-                purchase_price_raw = row.get(p_price_col, '').strip() if p_price_col else ''
-                purchase_price = float(purchase_price_raw) if purchase_price_raw else None
-
-                purchase_date = row.get(p_date_col, '').strip() if p_date_col else ''
-                if not purchase_date and days_held_col:
-                    try:
-                        dh = int(row.get(days_held_col, '').strip())
-                        purchase_date = (date.today() - timedelta(days=dh)).strftime('%Y-%m-%d')
-                    except Exception:
-                        pass
+                ticker = sanitize(row.get('ticker', '').strip(), 30)
+                name = sanitize(row.get('name', '').strip(), 100)
+                quantity = float(row.get('quantity', 0))
                 
-                try:
-                    if purchase_date:
-                        datetime.strptime(purchase_date, '%Y-%m-%d')
-                    else:
-                        purchase_date = '2020-01-01'
-                except Exception:
-                    purchase_date = '2020-01-01'
+                purchase_date = row.get('purchase_date', '').strip()
+                if not purchase_date and row.get('days held'):
+                    try:
+                        from datetime import timedelta
+                        days = int(row.get('days held').strip())
+                        purchase_date = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+                    except ValueError:
+                        pass
+                        
+                h_type = row.get('type', 'stock').strip().lower()
+                purchase_price_raw = row.get('purchase_price', '').strip() or row.get('buy price', '').strip()
 
+                if h_type not in ('stock', 'etf', 'mf'):
+                    skipped += 1; skipped_rows.append(f"Row {i+2}: invalid type"); continue
+                datetime.strptime(purchase_date, '%Y-%m-%d')
+
+                purchase_price = float(purchase_price_raw) if purchase_price_raw else None
                 if purchase_price is None and h_type == 'mf':
                     nav_data = data_fetch.get_fund_nav(ticker)
                     purchase_price = nav_data['nav'] if nav_data else None
@@ -1166,17 +1158,17 @@ def api_status_check():
     except Exception as e:
         results['google_news'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
 
-    # Gemini
+    # Groq
     t0 = time.time()
     try:
-        from engine.gemini_client import call_genie
+        from engine.groq_client import call_genie
         resp = call_genie('Say hello in 10 words.', [], 'Test context', 'Test profile')
         words = len(resp.get('response', '').split())
-        results['gemini'] = {'ok': words > 3,
-                             'detail': f'Response: {words} words. Model: {resp.get("model_used")}',
-                             'latency_ms': round((time.time() - t0) * 1000)}
+        results['groq'] = {'ok': words > 3,
+                           'detail': f'Response: {words} words. Model: {resp.get("model_used")}',
+                           'latency_ms': round((time.time() - t0) * 1000)}
     except Exception as e:
-        results['gemini'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
+        results['groq'] = {'ok': False, 'detail': str(e), 'latency_ms': round((time.time() - t0) * 1000)}
 
     # SQLite
     t0 = time.time()

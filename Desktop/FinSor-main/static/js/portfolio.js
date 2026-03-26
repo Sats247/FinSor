@@ -103,7 +103,7 @@ function renderSectorBars(holdings) {
   container.innerHTML = sorted.map(([name, val]) => {
     const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
     return `<div class="sector-row">
-      <span class="sector-name" style="text-transform: uppercase;">${name}</span>
+      <span class="sector-name">${name}</span>
       <div class="sector-bar-track"><div class="sector-bar-fill" style="width:${pct}%"></div></div>
       <span class="sector-pct">${pct}%</span>
     </div>`;

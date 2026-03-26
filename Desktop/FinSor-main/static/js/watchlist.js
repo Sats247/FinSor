@@ -192,4 +192,65 @@ document.addEventListener('DOMContentLoaded', () => {
   // Poll alerts
   setInterval(() => { apiFetch('/api/alerts/check'); loadAlertHistory(); }, 60000);
   lucide.createIcons();
+
+  // Watchlist Manual Refresh
+  const refreshWlBtn = document.getElementById('refresh-wl-btn');
+  if (refreshWlBtn) {
+    refreshWlBtn.addEventListener('click', async () => {
+      refreshWlBtn.disabled = true;
+      refreshWlBtn.style.opacity = '0.5';
+      await loadWatchlist();
+      refreshWlBtn.disabled = false;
+      refreshWlBtn.style.opacity = '1';
+      lucide.createIcons({ nodes: [refreshWlBtn] });
+    });
+  }
+
+  // Watchlist Live Updates Toggle
+  let wlLiveUpdateInterval = null;
+  const WL_REFRESH_INTERVAL = 5000;
+
+  function refreshWatchlistData() {
+    loadWatchlist().catch(e => console.warn("Auto-refresh error (silent):", e));
+  }
+
+  function startWlLiveUpdates() {
+    const liveIndicator = document.getElementById('wlLiveIndicator');
+    const slider = document.getElementById('wlSliderSpan');
+    const knob = document.getElementById('wlKnobSpan');
+    if (liveIndicator) liveIndicator.style.display = 'flex';
+    if (slider) { slider.style.background = 'var(--primary,#2563eb)'; slider.style.borderColor = 'var(--primary,#2563eb)'; }
+    if (knob)   { knob.style.background = '#fff'; knob.style.transform = 'translateX(16px)'; }
+    refreshWatchlistData();
+    if (wlLiveUpdateInterval) clearInterval(wlLiveUpdateInterval);
+    wlLiveUpdateInterval = setInterval(() => {
+      refreshWatchlistData();
+    }, WL_REFRESH_INTERVAL);
+  }
+
+  function stopWlLiveUpdates() {
+    const liveIndicator = document.getElementById('wlLiveIndicator');
+    const slider = document.getElementById('wlSliderSpan');
+    const knob = document.getElementById('wlKnobSpan');
+    if (liveIndicator) liveIndicator.style.display = 'none';
+    if (slider) { slider.style.background = ''; slider.style.borderColor = ''; }
+    if (knob)   { knob.style.background = ''; knob.style.transform = ''; }
+    if (wlLiveUpdateInterval) {
+      clearInterval(wlLiveUpdateInterval);
+      wlLiveUpdateInterval = null;
+    }
+  }
+
+  const wlLiveUpdateToggle = document.getElementById('wlLiveUpdateToggle');
+  if (wlLiveUpdateToggle) {
+    wlLiveUpdateToggle.addEventListener('change', function(e) {
+      if (e.target.checked) startWlLiveUpdates();
+      else stopWlLiveUpdates();
+    });
+    window.addEventListener('beforeunload', () => stopWlLiveUpdates());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && wlLiveUpdateToggle.checked) stopWlLiveUpdates();
+      else if (!document.hidden && wlLiveUpdateToggle.checked) startWlLiveUpdates();
+    });
+  }
 });

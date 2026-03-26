@@ -5,8 +5,88 @@
 {% block content %}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
   <div><h1 class="card-title" style="font-size:var(--text-2xl);">Watchlist</h1><p style="color:var(--on-surface-muted);font-size:var(--text-base);">Live prices · Sparklines · Price Alerts</p></div>
-  <button class="btn btn-primary btn-sm" onclick="openAddModal()"><i data-lucide="plus" width="14" height="14"></i> Add Symbol</button>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <!-- Live toggle label -->
+    <span style="font-size:12px;font-weight:600;color:var(--on-surface-muted);text-transform:uppercase;letter-spacing:0.5px;">Live</span>
+    <!-- Live update toggle switch -->
+    <label class="wl-toggle-switch" title="Toggle auto-refresh every 5s" style="cursor:pointer;position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;">
+      <input type="checkbox" id="wlLiveUpdateToggle" style="opacity:0;width:0;height:0;">
+      <span id="wlSliderSpan" style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--surface-container-high,#555);border-radius:20px;border:1px solid var(--border,#888);transition:.3s;"></span>
+      <span id="wlKnobSpan" style="position:absolute;top:3px;left:3px;width:14px;height:14px;background:var(--on-surface-muted,#aaa);border-radius:50%;transition:.3s;"></span>
+    </label>
+    <!-- Animated live dot -->
+    <span id="wlLiveIndicator" style="display:none;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--gain,#00a06e);text-transform:uppercase;">
+      <span style="display:inline-block;width:7px;height:7px;background:var(--gain,#00a06e);border-radius:50%;animation:wlPulse 1.4s ease-in-out infinite;"></span>Live
+    </span>
+    <!-- Refresh button -->
+    <button id="refresh-wl-btn" title="Refresh prices now"
+      style="display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:32px;background:transparent;border:1px solid var(--border,rgba(200,200,220,0.3));border-radius:8px;color:var(--on-surface-muted);font-size:13px;font-weight:500;cursor:pointer;transition:background .2s,color .2s;">
+      <i data-lucide="refresh-cw" width="14" height="14"></i> Refresh
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()"><i data-lucide="plus" width="14" height="14"></i> Add Symbol</button>
+  </div>
 </div>
+<style>
+@keyframes wlPulse {
+  0%,100% { transform: scale(0.85); opacity: 0.6; }
+  50%      { transform: scale(1.25); opacity: 1; }
+}
+#refresh-wl-btn:hover { background: var(--surface-container); color: var(--on-surface); }
+</style>
+
+<style>
+/* Pure CSS Toggle Switch */
+.live-update-container .toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+.live-update-container .toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.live-update-container .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--surface-container-high, #ccc);
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 18px;
+  border: 1px solid var(--border, #aaa);
+}
+.live-update-container .slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: var(--on-surface-muted, #777);
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+}
+.live-update-container input:checked + .slider {
+  background-color: var(--primary, #2196F3);
+  border-color: var(--primary, #2196F3);
+}
+.live-update-container input:checked + .slider:before {
+  transform: translateX(14px);
+  background-color: white;
+}
+@keyframes pulseLiveIndicator {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+.live-update-container .indicator-pulse {
+  animation: pulseLiveIndicator 1.5s infinite ease-in-out;
+}
+</style>
 
 <!-- Watchlist Grid -->
 <div class="watchlist-grid" id="watchlist-grid">

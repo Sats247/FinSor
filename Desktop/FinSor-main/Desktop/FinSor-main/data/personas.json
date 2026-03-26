@@ -1,0 +1,73 @@
+[
+  {
+    "id": "priya",
+    "name": "Priya Sharma",
+    "email": "priya@finsor.demo",
+    "age": 26,
+    "city": "Bengaluru",
+    "tag": "First-Time Investor",
+    "summary": "3 active SIPs · No direct stocks",
+    "risk_category": "Balanced",
+    "risk_score": 6,
+    "experience_level": "Beginner",
+    "monthly_investable": 8000,
+    "goal": "Wealth creation",
+    "horizon_years": 10,
+    "portfolio": [
+      {"ticker": "119551", "type": "mf", "name": "SBI Liquid Fund", "quantity": 1, "purchase_price": 3800.00, "purchase_date": "2023-08-01"},
+      {"ticker": "118701", "type": "mf", "name": "HDFC Balanced Advantage Fund", "quantity": 2, "purchase_price": 420.00, "purchase_date": "2023-11-15"},
+      {"ticker": "122639", "type": "mf", "name": "Parag Parikh Flexi Cap Fund", "quantity": 3, "purchase_price": 580.00, "purchase_date": "2024-01-10"}
+    ],
+    "watchlist": ["INFY.NS", "TCS.NS", "NIFTYBEES.NS"],
+    "alerts": []
+  },
+  {
+    "id": "arjun",
+    "name": "Arjun Mehta",
+    "email": "arjun@finsor.demo",
+    "age": 38,
+    "city": "Mumbai",
+    "tag": "Active Investor",
+    "summary": "Mixed portfolio · TLH opportunity",
+    "risk_category": "Growth",
+    "risk_score": 8,
+    "experience_level": "Intermediate",
+    "monthly_investable": 25000,
+    "goal": "Portfolio growth + tax efficiency",
+    "horizon_years": 15,
+    "portfolio": [
+      {"ticker": "RELIANCE.NS", "type": "stock", "name": "Reliance Industries", "quantity": 10, "purchase_price": 2850.00, "purchase_date": "2024-04-10"},
+      {"ticker": "HDFCBANK.NS", "type": "stock", "name": "HDFC Bank", "quantity": 15, "purchase_price": 1680.00, "purchase_date": "2023-09-22"},
+      {"ticker": "WIPRO.NS", "type": "stock", "name": "Wipro", "quantity": 20, "purchase_price": 520.00, "purchase_date": "2024-08-01"},
+      {"ticker": "TATAMOTORS.NS", "type": "stock", "name": "Tata Motors", "quantity": 8, "purchase_price": 980.00, "purchase_date": "2023-10-05"},
+      {"ticker": "NIFTYBEES.NS", "type": "etf", "name": "Nifty 50 BeES", "quantity": 50, "purchase_price": 195.00, "purchase_date": "2024-02-14"},
+      {"ticker": "GOLDBEES.NS", "type": "etf", "name": "Gold BeES", "quantity": 30, "purchase_price": 52.00, "purchase_date": "2023-12-01"},
+      {"ticker": "120474", "type": "mf", "name": "Axis Midcap Fund", "quantity": 5, "purchase_price": 102.00, "purchase_date": "2024-07-19"}
+    ],
+    "watchlist": ["BAJFINANCE.NS", "ICICIBANK.NS", "ADANIENT.NS"],
+    "alerts": [{"ticker": "RELIANCE.NS", "target_price": 3000, "direction": "above"}]
+  },
+  {
+    "id": "meera",
+    "name": "Meera Iyer",
+    "email": "meera@finsor.demo",
+    "age": 52,
+    "city": "Chennai",
+    "tag": "Conservative Investor",
+    "summary": "Retirement focus · Debt-heavy",
+    "risk_category": "Conservative",
+    "risk_score": 2,
+    "experience_level": "Experienced",
+    "monthly_investable": 15000,
+    "goal": "Retirement corpus",
+    "horizon_years": 8,
+    "portfolio": [
+      {"ticker": "119551", "type": "mf", "name": "SBI Liquid Fund", "quantity": 10, "purchase_price": 3750.00, "purchase_date": "2022-06-01"},
+      {"ticker": "118989", "type": "mf", "name": "HDFC Overnight Fund", "quantity": 8, "purchase_price": 3100.00, "purchase_date": "2022-09-15"},
+      {"ticker": "120604", "type": "mf", "name": "ICICI Pru Short Term Fund", "quantity": 6, "purchase_price": 52.00, "purchase_date": "2023-03-01"},
+      {"ticker": "GOLDBEES.NS", "type": "etf", "name": "Gold BeES", "quantity": 100, "purchase_price": 45.00, "purchase_date": "2021-11-20"}
+    ],
+    "watchlist": ["GOLDBEES.NS", "NIFTYBEES.NS"],
+    "alerts": [{"ticker": "GOLDBEES.NS", "target_price": 70, "direction": "above"}]
+  }
+]

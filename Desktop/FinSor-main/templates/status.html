@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}FinSor — System Status{% endblock %}
-{% block meta_description %}Live diagnostics for all FinSor data sources — yfinance, AMFI, Gemini, Polymarket, Google News, and SQLite.{% endblock %}
+{% block meta_description %}Live diagnostics for all FinSor data sources — yfinance, AMFI, Groq, Polymarket, Google News, and SQLite.{% endblock %}
 
 {% block content %}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
@@ -65,14 +65,14 @@
     <p class="status-latency" id="sl-google_news"></p>
   </div>
 
-  <!-- Gemini -->
-  <div class="card status-card" id="sc-gemini">
+  <!-- Groq -->
+  <div class="card status-card" id="sc-groq">
     <div class="status-card-header">
-      <span class="status-card-title">Gemini (AI Genie)</span>
-      <div class="status-icon" id="si-gemini"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
+      <span class="status-card-title">Groq (AI Genie)</span>
+      <div class="status-icon" id="si-groq"><i data-lucide="help-circle" width="20" height="20" style="color:var(--on-surface-muted);"></i></div>
     </div>
-    <p class="status-detail" id="sd-gemini">Not checked yet</p>
-    <p class="status-latency" id="sl-gemini"></p>
+    <p class="status-detail" id="sd-groq">Not checked yet</p>
+    <p class="status-latency" id="sl-groq"></p>
   </div>
 
   <!-- SQLite -->
@@ -117,7 +117,7 @@
     </div>
     <div class="checklist-item" onclick="toggleCheck(this)">
       <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
-      <span class="checklist-item-text">GEMINI_API_KEY and FLASK_SECRET_KEY loaded from .env</span>
+      <span class="checklist-item-text">GROQ_API_KEY and FLASK_SECRET_KEY loaded from .env</span>
     </div>
     <div class="checklist-item" onclick="toggleCheck(this)">
       <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
@@ -125,7 +125,7 @@
     </div>
     <div class="checklist-item" onclick="toggleCheck(this)">
       <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>
-      <span class="checklist-item-text">Gemini Genie — responding with valid text</span>
+      <span class="checklist-item-text">Groq Genie — responding with valid text</span>
     </div>
     <div class="checklist-item" onclick="toggleCheck(this)">
       <div class="checklist-circle"><i data-lucide="check" width="12" height="12" style="color:#fff;display:none;" class="check-icon"></i></div>

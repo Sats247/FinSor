@@ -1,19 +1,18 @@
 """
-sip_model.py — RandomForestRegressor-based ETF SIP allocation engine.
+sip_model.py — ETF SIP allocation engine.
 
-Supports two training modes:
-  1. SYNTHETIC  — generated internally when no CSV is present.
-  2. CSV-TRAINED — from an uploaded merged_etf_data.csv file.
+Two operating modes
+───────────────────
+SYNTHETIC  : No CSV present. Uses direct linear interpolation between three
+             hardcoded profile centroids (conservative / moderate / aggressive).
+             The RandomForest is NOT used in this mode — it produced wrong outputs
+             because synthetic noise swamped the signal at cluster boundaries.
 
-Auto-detected CSV formats
-─────────────────────────
-Format A — Direct training labels:
-  Columns: Age, Risk_Score, BANK, GOLD, NIFTY, SILVER
-  ETF columns can be fractions (0-1) or percentages (0-100); auto-normalised.
-
-Format B — Price history (OHLCV or closing prices):
-  Columns: Date, NIFTY, BANK, GOLD, SILVER   (any order, case-insensitive)
-  Engine computes daily returns → Sharpe ratios → optimal weights per profile.
+CSV-TRAINED: A merged_etf_data.csv is present (or uploaded).
+             Supports two formats:
+               Format A — Direct labels: Age, Risk_Score, BANK, GOLD, NIFTY, SILVER
+               Format B — Price history: Date, NIFTY, BANK, GOLD, SILVER
+             A RandomForestRegressor is trained on real data in this mode.
 """
 
 import logging
@@ -25,12 +24,13 @@ from sklearn.ensemble import RandomForestRegressor
 logger = logging.getLogger(__name__)
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
-ETF_KEYS       = ['BANK', 'GOLD', 'NIFTY', 'SILVER']
-CSV_PATH       = os.path.join(os.path.dirname(__file__), '..', 'merged_etf_data.csv')
+ETF_KEYS = ['BANK', 'GOLD', 'NIFTY', 'SILVER']
+CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'merged_etf_data.csv')
 REQUIRED_PRICE_COLS = {'nifty', 'bank', 'gold', 'silver'}
 REQUIRED_LABEL_COLS = {'age', 'risk_score', 'bank', 'gold', 'nifty', 'silver'}
+MIN_SHARPE_ROWS     = 60   # columns with fewer rows have unreliable Sharpe
 
-# ─── Default centroid weights per profile ──────────────────────────────────────
+# ─── Profile centroids ─────────────────────────────────────────────────────────
 _PROFILE_WEIGHTS = {
     'aggressive':   {'BANK': 0.30, 'GOLD': 0.05, 'NIFTY': 0.40, 'SILVER': 0.25},
     'moderate':     {'BANK': 0.20, 'GOLD': 0.15, 'NIFTY': 0.50, 'SILVER': 0.15},
@@ -45,34 +45,62 @@ def _profile(risk: int) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CSV PARSING — auto-detects format A or B
+# INTERPOLATION — used in synthetic mode (no CSV)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _interpolate_weights(risk: int) -> dict:
+    """
+    Linear interpolation between profile centroids based on risk score.
+    Deterministic, transparent, matches profile labels exactly.
+    RF is NOT used here — reserved for real CSV data only.
+    """
+    cons = _PROFILE_WEIGHTS['conservative']
+    mod  = _PROFILE_WEIGHTS['moderate']
+    agg  = _PROFILE_WEIGHTS['aggressive']
+
+    if risk <= 4:
+        t = (risk - 1) / 3.0 * 0.3
+        w = {k: cons[k] + t * (mod[k] - cons[k]) for k in ETF_KEYS}
+    elif risk <= 7:
+        t = (risk - 4) / 3.0
+        w = {k: cons[k] + t * (mod[k] - cons[k]) for k in ETF_KEYS}
+    else:
+        t = (risk - 7) / 3.0
+        w = {k: mod[k] + t * (agg[k] - mod[k]) for k in ETF_KEYS}
+
+    total = sum(w.values())
+    return {k: v / total for k, v in w.items()}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CSV PARSING
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _detect_csv_format(df: pd.DataFrame) -> str:
-    """Returns 'labels' (Format A) or 'prices' (Format B) or raises ValueError."""
     cols = {c.lower().strip() for c in df.columns}
     if REQUIRED_LABEL_COLS.issubset(cols):
         return 'labels'
     if REQUIRED_PRICE_COLS.issubset(cols):
         return 'prices'
     raise ValueError(
-        f"CSV columns {list(df.columns)} do not match either expected format.\n"
+        f"CSV columns {list(df.columns)} match neither expected format.\n"
         "Format A needs: Age, Risk_Score, BANK, GOLD, NIFTY, SILVER\n"
-        "Format B needs: Date, NIFTY, BANK, GOLD, SILVER (plus any others)"
+        "Format B needs: Date, NIFTY, BANK, GOLD, SILVER"
     )
 
 
 def _load_format_a(df: pd.DataFrame) -> tuple:
-    """Direct training labels: (Age, Risk_Score) → ETF weights."""
+    """Direct training labels → (X, Y)."""
     df.columns = [c.lower().strip() for c in df.columns]
     df = df.dropna(subset=['age', 'risk_score', 'bank', 'gold', 'nifty', 'silver'])
     df['age']        = pd.to_numeric(df['age'],        errors='coerce').clip(18, 65)
     df['risk_score'] = pd.to_numeric(df['risk_score'], errors='coerce').clip(1, 10)
     df = df.dropna(subset=['age', 'risk_score'])
 
-    weights_raw = df[['bank', 'gold', 'nifty', 'silver']].apply(pd.to_numeric, errors='coerce').fillna(0)
+    weights_raw = df[['bank', 'gold', 'nifty', 'silver']].apply(
+        pd.to_numeric, errors='coerce'
+    ).fillna(0)
 
-    # Auto-detect % vs fraction: if any value > 1.5, treat entire column as pct
     if (weights_raw > 1.5).any().any():
         weights_raw = weights_raw / 100.0
 
@@ -82,61 +110,97 @@ def _load_format_a(df: pd.DataFrame) -> tuple:
 
     good_idx = weights_raw.index
     X = df.loc[good_idx, ['age', 'risk_score']].values.astype(float)
-    # Reorder columns to match ETF_KEYS = ['BANK','GOLD','NIFTY','SILVER']
+    # ETF_KEYS = ['BANK', 'GOLD', 'NIFTY', 'SILVER']
     Y = weights_raw[['bank', 'gold', 'nifty', 'silver']].values
-
     return X, Y
 
 
 def _load_format_b(df: pd.DataFrame) -> tuple:
     """
-    Price history → derive profile-optimal weights via Sharpe ratio.
-    Generates synthetic (Age, Risk) training rows calibrated to those weights.
+    Price history → derive profile weights via per-column Sharpe ratio.
+
+    Each ETF's Sharpe is computed from its own full non-null history
+    independently. Columns with < MIN_SHARPE_ROWS valid rows are treated as
+    unreliable and their Sharpe contribution is zeroed out — the centroid
+    weight passes through unchanged for those columns.
     """
     df.columns = [c.lower().strip() for c in df.columns]
+    price_cols = ['nifty', 'bank', 'gold', 'silver']  # fixed order
 
-    # Parse prices
-    price_cols = ['nifty', 'bank', 'gold', 'silver']
-    prices = df[price_cols].apply(pd.to_numeric, errors='coerce').dropna()
+    prices = df[price_cols].apply(pd.to_numeric, errors='coerce')
 
-    if len(prices) < 30:
-        raise ValueError("Price history CSV needs at least 30 rows of price data.")
+    if prices.dropna(how='all').shape[0] < 30:
+        raise ValueError("Price history CSV needs at least 30 rows of data.")
 
-    # Daily returns
-    returns  = prices.pct_change().dropna()
-    ann_ret  = returns.mean() * 252
-    ann_vol  = returns.std() * np.sqrt(252)
-    sharpe   = (ann_ret / ann_vol.replace(0, np.nan)).fillna(0).clip(0, None)
+    # Per-column Sharpe (independent histories)
+    sharpe_vals = {}
+    reliable    = {}
+    for col in price_cols:
+        series = prices[col].dropna()
+        if len(series) >= MIN_SHARPE_ROWS:
+            rets  = series.pct_change().dropna()
+            ann_r = rets.mean() * 12        # monthly → annualised
+            ann_v = rets.std() * np.sqrt(12)
+            s     = ann_r / ann_v if ann_v > 0 else 0.0
+            sharpe_vals[col] = max(0.0, float(s))
+            reliable[col]    = True
+        else:
+            sharpe_vals[col] = 0.0
+            reliable[col]    = False
+            logger.warning(
+                f"SIPModel: '{col}' only has {len(series)} rows "
+                f"(<{MIN_SHARPE_ROWS}) — Sharpe skipped, centroid used."
+            )
 
-    # Compute profile weights: base centroids tempered by relative Sharpe scores
+    sharpe_arr = np.array([sharpe_vals[c] for c in price_cols])
+    total_s    = sharpe_arr.sum()
+    sharpe_w   = sharpe_arr / total_s if total_s > 0 else np.full(4, 0.25)
+
+    # Build profile overrides: 70% centroid + 30% Sharpe (reliable cols only)
     profile_overrides = {}
     for prof, base_dict in _PROFILE_WEIGHTS.items():
-        base = np.array([base_dict[k.upper()] for k in price_cols])
-        # Blend 60% base + 40% sharpe-proportional
-        sharpe_w = sharpe.values / (sharpe.values.sum() or 1)
-        blended  = 0.60 * base + 0.40 * sharpe_w
-        blended  = np.clip(blended, 0, None)
+        # price_cols order: nifty=0, bank=1, gold=2, silver=3
+        base = np.array([
+            base_dict['NIFTY'],
+            base_dict['BANK'],
+            base_dict['GOLD'],
+            base_dict['SILVER'],
+        ])
+
+        sw = sharpe_w.copy()
+        for i, col in enumerate(price_cols):
+            if not reliable[col]:
+                sw[i] = 0.0
+        sw_sum = sw.sum()
+        if sw_sum > 0:
+            sw = sw / sw_sum
+
+        blended = 0.70 * base + 0.30 * sw
+        blended = np.clip(blended, 0, None)
         blended /= blended.sum()
-        # Order: BANK, GOLD, NIFTY, SILVER
+
         profile_overrides[prof] = {
-            'BANK':   float(blended[1]),
-            'GOLD':   float(blended[3]),
             'NIFTY':  float(blended[0]),
-            'SILVER': float(blended[2]),
+            'BANK':   float(blended[1]),
+            'GOLD':   float(blended[2]),
+            'SILVER': float(blended[3]),
         }
 
-    # Generate 2,000 synthetic (Age, Risk) rows calibrated to these weights
-    rng  = np.random.default_rng(42)
-    n    = 2000
-    ages = rng.integers(18, 66, n)
+    logger.info(f"SIPModel: Format B overrides → {profile_overrides}")
+
+    # Generate calibrated training rows
+    rng   = np.random.default_rng(42)
+    n     = 2000
+    ages  = rng.integers(18, 66, n)
     risks = rng.integers(1, 11, n)
-    X = np.column_stack([ages, risks])
-    Y = np.zeros((n, 4))
+    X     = np.column_stack([ages, risks])
+    Y     = np.zeros((n, 4))
 
     for i, risk in enumerate(risks):
-        prof = _profile(int(risk))
-        w    = profile_overrides[prof]
-        base = np.array([w['BANK'], w['GOLD'], w['NIFTY'], w['SILVER']])
+        prof  = _profile(int(risk))
+        w     = profile_overrides[prof]
+        # ETF_KEYS order = BANK, GOLD, NIFTY, SILVER
+        base  = np.array([w['BANK'], w['GOLD'], w['NIFTY'], w['SILVER']])
         noise = rng.normal(0, 0.015, 4)
         w_arr = np.clip(base + noise, 0, None)
         Y[i]  = w_arr / w_arr.sum()
@@ -145,66 +209,39 @@ def _load_format_b(df: pd.DataFrame) -> tuple:
 
 
 def load_csv_training_data(csv_path: str) -> tuple:
-    """
-    Public entry point for loading a CSV.
-    Returns (X, Y, format_detected, n_rows, stats) where
-    stats is a dict of computed metrics shown in the UI.
-    """
+    """Returns (X, Y, format_str, stats_dict)."""
     df  = pd.read_csv(csv_path)
     fmt = _detect_csv_format(df)
-    logger.info(f"SIPModel: CSV detected as format '{fmt}' — {len(df)} rows")
+    logger.info(f"SIPModel: CSV format '{fmt}', {len(df)} rows")
 
     if fmt == 'labels':
-        X, Y = _load_format_a(df)
-        stats = {
-            'format':  'Direct training labels',
-            'rows':    len(X),
-            'columns': list(df.columns),
-        }
+        X, Y  = _load_format_a(df)
+        stats = {'format': 'Direct training labels', 'rows': len(X),
+                 'columns': list(df.columns)}
     else:
         X, Y = _load_format_b(df)
         df.columns = [c.lower().strip() for c in df.columns]
-        prices = df[['nifty','bank','gold','silver']].apply(pd.to_numeric, errors='coerce').dropna()
-        rets   = prices.pct_change().dropna()
-        stats  = {
-            'format':  'Price history',
-            'rows':    len(prices),
+        prices = df[['nifty', 'bank', 'gold', 'silver']].apply(
+            pd.to_numeric, errors='coerce')
+        stats = {
+            'format': 'Price history',
+            'rows':   prices.dropna(how='all').shape[0],
             'columns': list(df.columns),
-            'cagr': {
-                'NIFTY':  round(float(rets['nifty'].mean()  * 252 * 100), 2),
-                'BANK':   round(float(rets['bank'].mean()   * 252 * 100), 2),
-                'GOLD':   round(float(rets['gold'].mean()   * 252 * 100), 2),
-                'SILVER': round(float(rets['silver'].mean() * 252 * 100), 2),
-            },
-            'vol': {
-                'NIFTY':  round(float(rets['nifty'].std()  * np.sqrt(252) * 100), 2),
-                'BANK':   round(float(rets['bank'].std()   * np.sqrt(252) * 100), 2),
-                'GOLD':   round(float(rets['gold'].std()   * np.sqrt(252) * 100), 2),
-                'SILVER': round(float(rets['silver'].std() * np.sqrt(252) * 100), 2),
-            },
         }
+        # Per-column CAGR/vol (each on its own non-null history)
+        cagr, vol = {}, {}
+        for key, col in [('NIFTY','nifty'),('BANK','bank'),('GOLD','gold'),('SILVER','silver')]:
+            s = prices[col].dropna()
+            if len(s) > 1:
+                r = s.pct_change().dropna()
+                cagr[key] = round(float(r.mean()  * 12 * 100), 2)
+                vol[key]  = round(float(r.std() * np.sqrt(12) * 100), 2)
+            else:
+                cagr[key] = vol[key] = 0.0
+        stats['cagr'] = cagr
+        stats['vol']  = vol
 
     return X, Y, fmt, stats
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SYNTHETIC TRAINING DATA (fallback)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _generate_synthetic(n: int = 2000) -> tuple:
-    rng = np.random.default_rng(42)
-    ages  = rng.integers(18, 66, n)
-    risks = rng.integers(1, 11, n)
-    X = np.column_stack([ages, risks])
-    Y = np.zeros((n, 4))
-    for i, risk in enumerate(risks):
-        prof = _profile(int(risk))
-        w    = _PROFILE_WEIGHTS[prof]
-        base = np.array([w['BANK'], w['GOLD'], w['NIFTY'], w['SILVER']])
-        noise = rng.normal(0, 0.015, 4)
-        b     = np.clip(base + noise, 0, None)
-        Y[i]  = b / b.sum()
-    return X, Y
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -213,13 +250,12 @@ def _generate_synthetic(n: int = 2000) -> tuple:
 
 class SIPModel:
     def __init__(self):
-        self._models:  list[RandomForestRegressor] = []
-        self._trained: bool  = False
-        self.source:   str   = 'none'     # 'synthetic' | 'csv_labels' | 'csv_prices'
+        self._models:   list = []
+        self._trained:  bool = False
+        self.source:    str  = 'none'
         self.csv_stats: dict = {}
         self.n_samples: int  = 0
 
-    # ── Core train method ───────────────────────────────────────────────────────
     def _fit(self, X: np.ndarray, Y: np.ndarray):
         self._models = []
         for col in range(4):
@@ -232,60 +268,53 @@ class SIPModel:
         self._trained  = True
         self.n_samples = len(X)
 
-    # ── Train on startup (synthetic or auto-load CSV if present) ───────────────
     def train(self):
         csv = os.path.abspath(CSV_PATH)
         if os.path.isfile(csv):
             try:
                 X, Y, fmt, stats = load_csv_training_data(csv)
                 self._fit(X, Y)
-                self.source     = f'csv_{fmt}'
-                self.csv_stats  = stats
+                self.source    = f'csv_{fmt}'
+                self.csv_stats = stats
                 logger.info(f"SIPModel: trained on CSV ({fmt}, {len(X)} rows)")
                 return
             except Exception as e:
-                logger.warning(f"SIPModel: CSV load failed ({e}), falling back to synthetic.")
+                logger.warning(f"SIPModel: CSV load failed ({e}), using interpolation.")
 
-        X, Y = _generate_synthetic(2000)
-        self._fit(X, Y)
+        # No CSV — interpolation mode (no RF needed)
+        self._trained  = True
         self.source    = 'synthetic'
         self.csv_stats = {}
-        logger.info("SIPModel: trained on synthetic data.")
+        self.n_samples = 0
+        logger.info("SIPModel: synthetic/interpolation mode — no CSV.")
 
-    # ── Retrain on a freshly uploaded CSV (called from Flask route) ─────────────
     def retrain_from_csv(self, csv_path: str) -> dict:
-        """
-        Trains the model on `csv_path` in-place. Returns stats dict for the API response.
-        Raises ValueError on bad CSV so the route can return a user-friendly error.
-        """
         X, Y, fmt, stats = load_csv_training_data(csv_path)
         self._fit(X, Y)
         self.source    = f'csv_{fmt}'
         self.csv_stats = stats
-        logger.info(f"SIPModel: retrained from CSV ({fmt}, {len(X)} rows).")
+        logger.info(f"SIPModel: retrained from CSV ({fmt}, {len(X)} rows)")
         return stats
 
-    # ── Predict ─────────────────────────────────────────────────────────────────
     def predict(self, age: int, risk: int) -> dict:
-        if not self._trained:
-            logger.warning("SIPModel: not trained — using rule-based fallback.")
-            prof = _profile(risk)
-            w    = _PROFILE_WEIGHTS[prof]
-            raw  = np.array([w['BANK'], w['GOLD'], w['NIFTY'], w['SILVER']])
-        else:
-            X_in = np.array([[age, risk]])
-            raw  = np.array([m.predict(X_in)[0] for m in self._models])
+        """
+        Synthetic mode → direct interpolation (correct, deterministic).
+        CSV mode       → RandomForestRegressor on real data.
+        """
+        if self.source == 'synthetic' or not self._models:
+            return _interpolate_weights(risk)
 
-        raw = np.clip(raw, 0, None)
-        s   = raw.sum()
+        X_in = np.array([[age, risk]])
+        raw  = np.array([m.predict(X_in)[0] for m in self._models])
+        raw  = np.clip(raw, 0, None)
+        s    = raw.sum()
         if s == 0:
-            raw = np.array([0.25, 0.25, 0.25, 0.25])
-            s   = 1.0
+            return _interpolate_weights(risk)
         weights = raw / s
         return {key: float(weights[i]) for i, key in enumerate(ETF_KEYS)}
 
 
-# ─── Module-level singleton ─────────────────────────────────────────────────────
+# ─── Module singleton ──────────────────────────────────────────────────────────
 _sip_model = SIPModel()
 
 

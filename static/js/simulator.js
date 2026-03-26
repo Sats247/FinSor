@@ -60,6 +60,28 @@ function renderSimulatorOutput(d, params) {
   document.getElementById('impact-crash').textContent = d.impact_crash ? fmtINR(d.impact_crash) : '₹0';
   document.getElementById('real-value').textContent = fmtINR(final('scenario_base').real);
 
+  const jl = params.job_loss_months;
+  if (jl > 0) {
+    const missed = jl * params.monthly_sip;
+    document.getElementById('insight-job-loss').textContent = `The ${fmtINR(missed)} you didn't invest directly cost you ${fmtINR(Math.abs(d.impact_job_loss))} due to the compounding penalty.`;
+  } else {
+    document.getElementById('insight-job-loss').textContent = "Simulate the hidden compounding penalty of missing SIPs.";
+  }
+
+  const cr = params.crash_pct;
+  if (cr > 0) {
+    document.getElementById('insight-crash').textContent = `A ${cr}% crash costs you ${fmtINR(Math.abs(d.impact_crash))} at maturity due to compounding on a reduced base.`;
+  } else {
+    document.getElementById('insight-crash').textContent = "Explore the terminal damage of a sudden market drop.";
+  }
+
+  const inf = params.inflation;
+  if (inf > 0) {
+    document.getElementById('insight-real-value').textContent = `Your ${fmtINR(final('scenario_base').nominal)} will only buy what ${fmtINR(final('scenario_base').real)} buys today.`;
+  } else {
+    document.getElementById('insight-real-value').textContent = "See how inflation silently erodes your purchasing power.";
+  }
+
   // Explanations
   const sip = params.monthly_sip;
   const yr = params.years;

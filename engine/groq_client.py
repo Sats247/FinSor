@@ -138,7 +138,7 @@ def build_macro_context(macro_signals, regime_data, news_headlines, polymarket_s
     ]) or "No headlines available."
 
     poly_str = '\n'.join([
-        f"[{i+1}] {p['question']} — {round(p['probability']*100)}% probability"
+        f"[{i+1}] {p.get('title', 'Prediction')} — {p.get('probability', 0)}% probability"
         for i, p in enumerate((polymarket_signals or [])[:3])
     ]) or "No prediction signals available."
 

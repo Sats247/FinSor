@@ -58,6 +58,7 @@ function initTradingView() {
     "save_image": false,
     "container_id": "tv-chart-container",
     "hide_side_toolbar": false,
+    "allow_symbol_change": true,
     "studies": [
       "RSI@tv-basicstudies"
     ]

@@ -58,38 +58,40 @@
     <div class="signup-card">
       <h2 class="signup-card-title">Create your account</h2>
       <p class="signup-card-sub">Enter your details to begin the precision onboarding.</p>
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <div class="input-wrapper">
-          <label class="input-label">Full Name</label>
-          <input type="text" class="input-field" id="signup-name" placeholder="Priya Sharma">
-        </div>
-        <div class="form-row-2">
+      <form method="POST" action="/login" id="landing-signup-form">
+        <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="input-wrapper">
-            <label class="input-label">Birthday</label>
-            <input type="date" class="input-field" id="signup-dob">
+            <label class="input-label">Full Name</label>
+            <input type="text" class="input-field" id="signup-name" placeholder="Priya Sharma">
           </div>
-          <div class="input-wrapper">
-            <label class="input-label">Email Address</label>
-            <input type="email" class="input-field" id="signup-email" placeholder="you@example.com">
+          <div class="form-row-2">
+            <div class="input-wrapper">
+              <label class="input-label">Birthday</label>
+              <input type="date" class="input-field" id="signup-dob">
+            </div>
+            <div class="input-wrapper">
+              <label class="input-label">Email Address</label>
+              <input type="email" name="email" class="input-field" id="signup-email" placeholder="you@example.com">
+            </div>
+          </div>
+          <div class="input-wrapper" style="position:relative;">
+            <label class="input-label">Password</label>
+            <div class="input-with-icon">
+              <input type="password" class="input-field" id="signup-password" placeholder="Create a password" style="padding-right:44px;">
+              <button type="button" class="input-icon-right" onclick="togglePwd()" style="background:none;border:none;cursor:pointer;top:50%;transform:translateY(-50%);">
+                <i data-lucide="eye" width="16" height="16" id="pwd-eye"></i>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="input-wrapper" style="position:relative;">
-          <label class="input-label">Password</label>
-          <div class="input-with-icon">
-            <input type="password" class="input-field" id="signup-password" placeholder="Create a password" style="padding-right:44px;">
-            <button type="button" class="input-icon-right" onclick="togglePwd()" style="background:none;border:none;cursor:pointer;top:50%;transform:translateY(-50%);">
-              <i data-lucide="eye" width="16" height="16" id="pwd-eye"></i>
-            </button>
-          </div>
+        <div class="terms-row">
+          <input type="checkbox" class="custom-checkbox" id="terms-check" onchange="checkTerms()">
+          <label for="terms-check" class="terms-text">I agree to the <a href="#" style="color:var(--primary);">Terms of Service</a> and <a href="#" style="color:var(--primary);">Privacy Policy.</a></label>
         </div>
-      </div>
-      <div class="terms-row">
-        <input type="checkbox" class="custom-checkbox" id="terms-check" onchange="checkTerms()">
-        <label for="terms-check" class="terms-text">I agree to the <a href="#" style="color:var(--primary);">Terms of Service</a> and <a href="#" style="color:var(--primary);">Privacy Policy.</a></label>
-      </div>
-      <a href="/login" class="btn btn-primary w-full" id="signup-cta" style="display:flex;justify-content:center;gap:8px;opacity:0.5;pointer-events:none;">
-        Next: Risk Assessment <i data-lucide="arrow-right" width="16" height="16"></i>
-      </a>
+        <button type="submit" class="btn btn-primary w-full" id="signup-cta" style="display:flex;justify-content:center;gap:8px;opacity:0.5;pointer-events:none;">
+          Next: Risk Assessment <i data-lucide="arrow-right" width="16" height="16"></i>
+        </button>
+      </form>
       <div class="divider-row"><div class="divider-line"></div><span class="divider-text">Or continue with</span><div class="divider-line"></div></div>
       <div class="social-btns">
         <button class="social-btn" onclick="alert('Google login available in FinSor Pro. (Demo only)')">

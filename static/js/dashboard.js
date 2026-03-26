@@ -292,6 +292,9 @@ function initFundTabs() {
       document.querySelectorAll('.fund-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       activeType = tab.dataset.type;
+      const titleObj = { 'SIP': 'SIP Projection', 'MF': 'Mutual Fund Projection', 'ETF': 'ETF Projection' };
+      const pt = document.getElementById('projection-title');
+      if (pt) pt.textContent = titleObj[activeType] || 'Projection';
       loadFunds(activeType);
     });
   });

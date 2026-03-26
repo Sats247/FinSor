@@ -78,7 +78,7 @@ function renderAllocation(holdings) {
   const ctx = document.getElementById('allocation-chart');
   if (!ctx || !window.Chart) return;
   if (allocationChart) allocationChart.destroy();
-  const colors = { stock: '#0058be', etf: '#7c3aed', mf: '#0891b2' };
+  const colors = { stock: '#f44336', etf: '#4caf50', mf: '#ffeb3b' };
   allocationChart = new Chart(ctx, {
     type: 'doughnut',
     data: {

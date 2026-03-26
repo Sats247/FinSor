@@ -13,6 +13,7 @@ import logging
 import time
 
 from groq import Groq
+from groq import RateLimitError, APITimeoutError, APIConnectionError
 
 from config import (
     GROQ_API_KEY,
@@ -210,37 +211,47 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
     ]
 
     for model_name in GROQ_MODEL_CHAIN:
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1024,
-            )
-            text = response.choices[0].message.content
+        for attempt in range(3):  # up to 3 attempts per model
+            try:
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=1024,
+                )
+                text = response.choices[0].message.content
 
-            # Audit log
-            if db_conn and user_id:
-                try:
-                    db_conn.execute(
-                        '''INSERT INTO audit_log 
-                           (user_id, action, risk_category, recommended_funds, macro_context, reason)
-                           VALUES (?, 'genie_response', ?, ?, ?, ?)''',
-                        (user_id, '', '', f"msg_len={len(user_message)}, model={model_name}", bias or 'none')
-                    )
-                    db_conn.commit()
-                except Exception as db_err:
-                    logger.warning(f"Audit log write failed: {db_err}")
+                # Audit log
+                if db_conn and user_id:
+                    try:
+                        db_conn.execute(
+                            '''INSERT INTO audit_log 
+                               (user_id, action, risk_category, recommended_funds, macro_context, reason)
+                               VALUES (?, 'genie_response', ?, ?, ?, ?)''',
+                            (user_id, '', '', f"msg_len={len(user_message)}, model={model_name}", bias or 'none')
+                        )
+                        db_conn.commit()
+                    except Exception as db_err:
+                        logger.warning(f"Audit log write failed: {db_err}")
 
-            return {
-                'response': text,
-                'model_used': model_name,
-                'bias_detected': bias,
-            }
+                return {
+                    'response': text,
+                    'model_used': model_name,
+                    'bias_detected': bias,
+                }
 
-        except Exception as e:
-            logger.error(f"Groq call failed with {model_name}: {type(e).__name__}: {e}")
-            continue
+            except RateLimitError as e:
+                wait = 2 ** attempt  # 1s, 2s, 4s backoff
+                logger.warning(f"Groq rate limit on {model_name} (attempt {attempt+1}): waiting {wait}s")
+                time.sleep(wait)
+                continue
+            except (APITimeoutError, APIConnectionError) as e:
+                logger.warning(f"Groq connection issue on {model_name} (attempt {attempt+1}): {e}")
+                time.sleep(1)
+                continue
+            except Exception as e:
+                logger.error(f"Groq call failed with {model_name}: {type(e).__name__}: {e}")
+                break  # non-retriable error, try next model
 
     # All models failed
     logger.error("All Groq models failed. Returning static fallback.")
@@ -252,6 +263,7 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
 
 
 # ─── Smart Market Regime ───────────────────────────────────────────────────────
+# Cache holds both ts (last success timestamp) and data (last good result)
 _regime_cache = {'ts': 0, 'data': None}
 
 def get_smart_regime(macro_signals):
@@ -309,8 +321,16 @@ def get_smart_regime(macro_signals):
         _regime_cache = {'ts': time.time(), 'data': data}
         return data
 
+    except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+        logger.warning(f"Smart Regime transient error (Groq): {type(e).__name__}: {e}")
+        # Serve stale cache if available rather than falling to deterministic fallback
+        if _regime_cache['data'] is not None:
+            logger.info("Serving stale regime cache due to transient Groq error")
+            return _regime_cache['data']
     except Exception as e:
         logger.error(f"Smart Regime (Groq) failed: {type(e).__name__}: {e}")
+        if _regime_cache['data'] is not None:
+            return _regime_cache['data']
 
     # Deterministic fallback if AI fails completely
     fallback = {'regime': 'Neutral', 'reason': 'AI over limit. Base MMI metrics show neutral bias.'}

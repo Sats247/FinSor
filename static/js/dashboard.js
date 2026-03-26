@@ -329,6 +329,23 @@ document.addEventListener('DOMContentLoaded', () => {
       refreshBtn.style.opacity = '1';
     });
   }
+
+  // Auto-refresh toggle
+  let autoRefreshInterval = null;
+  const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+  if (autoRefreshToggle) {
+    autoRefreshToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        autoRefreshInterval = setInterval(() => {
+          loadMacro(true);
+        }, 5000);
+      } else {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    });
+  }
+
   // Genie send
   const sendBtn = document.getElementById('genie-send-btn');
   const input = document.getElementById('genie-input');

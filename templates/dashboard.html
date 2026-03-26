@@ -15,10 +15,80 @@
     <div class="live-dot pulse-dot" id="regime-dot" style="background:var(--primary)"></div>
     <span class="chip chip-primary" id="regime-badge">Loading...</span>
   </div>
+  <div class="auto-refresh-wrapper">
+    <span class="auto-refresh-label">Live</span>
+    <label class="toggle-switch" title="Auto-refresh every 5s">
+      <input type="checkbox" id="auto-refresh-toggle">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
   <button class="btn btn-ghost btn-xs" id="refresh-macro-btn" title="Refresh Market Data" style="margin-left: 12px; height: 24px; padding: 0 8px;">
     <i data-lucide="refresh-cw" width="14" height="14"></i>
   </button>
 </div>
+
+<style>
+/* Auto-refresh toggle */
+.auto-refresh-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--surface-container);
+}
+.auto-refresh-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--on-surface-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--surface-container-high);
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 18px;
+  border: 1px solid var(--surface-container);
+}
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 1px;
+  bottom: 1px;
+  background-color: var(--on-surface-muted);
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(14px);
+  background-color: #ffffff;
+}
+</style>
 
 <!-- 3-Column Grid -->
 <div class="dash-grid-3">

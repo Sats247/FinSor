@@ -27,11 +27,11 @@ TICKERS = ['^NSEI', '^BSESN', '^INDIAVIX', 'USDINR=X', 'BZ=F', 'GC=F']
 TICKER_KEYS = ['nifty50', 'sensex', 'india_vix', 'usd_inr', 'brent', 'gold']
 
 
-def _get_cached(key, ttl_key, fetch_fn):
+def _get_cached(key, ttl_key, fetch_fn, force_refresh=False):
     """Generic TTL cache. Returns stale data rather than crashing on fetch failure."""
     now = time.time()
     ttl = CACHE_TTL.get(ttl_key, 60)
-    if key in _cache and (now - _cache[key]['ts']) < ttl:
+    if not force_refresh and key in _cache and (now - _cache[key]['ts']) < ttl:
         return _cache[key]['data']
     try:
         result = fetch_fn()
@@ -97,9 +97,9 @@ def _fetch_macro_raw():
     return result
 
 
-def get_macro_signals():
+def get_macro_signals(force_refresh=False):
     """Returns macro signals dict with 60s cache."""
-    return _get_cached('macro', 'macro', _fetch_macro_raw)
+    return _get_cached('macro', 'macro', _fetch_macro_raw, force_refresh=force_refresh)
 
 
 # ─── AMFI NAV ──────────────────────────────────────────────────────────────────

@@ -5,8 +5,9 @@ let activeType = 'SIP';
 let intentTarget = null;
 
 // ─── Macro Strip ──────────────────────────────────────────────────────────────
-async function loadMacro() {
-  const data = await apiFetch('/api/macro');
+async function loadMacro(force = false) {
+  const url = force ? '/api/macro?force=true' : '/api/macro';
+  const data = await apiFetch(url);
   if (!data.success) return;
   const d = data.data;
   const CHIPS = [
@@ -317,6 +318,17 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPortfolioHealth();
   initFundTabs();
 
+  // Refresh Macro button
+  const refreshBtn = document.getElementById('refresh-macro-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.style.opacity = '0.5';
+      await loadMacro(true);
+      refreshBtn.disabled = false;
+      refreshBtn.style.opacity = '1';
+    });
+  }
   // Genie send
   const sendBtn = document.getElementById('genie-send-btn');
   const input = document.getElementById('genie-input');

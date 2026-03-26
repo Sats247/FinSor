@@ -345,7 +345,8 @@ def api_search():
 @app.route('/api/macro')
 def api_macro():
     try:
-        macro = data_fetch.get_macro_signals()
+        force_refresh = request.args.get('force') == 'true'
+        macro = data_fetch.get_macro_signals(force_refresh=force_refresh)
         if not macro:
             return error_json('Market data temporarily unavailable', 'YFINANCE_ERROR')
         return jsonify({'success': True, 'data': macro})

@@ -149,7 +149,7 @@ def error_json(message, code='UNKNOWN_ERROR', status=200):
 
 
 # ─── Session Guard ─────────────────────────────────────────────────────────────
-PUBLIC_ROUTES = {'landing', 'login', 'static', 'onboard', 'onboard_submit'}
+PUBLIC_ROUTES = {'landing', 'login', 'static', 'onboard', 'onboard_submit', 'serve_data'}
 
 
 @app.before_request
@@ -212,6 +212,13 @@ def load_persona_to_db(persona):
 @app.route('/')
 def landing():
     return render_template('landing.html')
+
+
+@app.route('/data/<path:filename>')
+def serve_data(filename):
+    from flask import send_from_directory
+    data_dir = os.path.join(app.root_path, 'data')
+    return send_from_directory(data_dir, filename)
 
 
 @app.route('/login', methods=['GET', 'POST'])

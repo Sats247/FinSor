@@ -47,14 +47,23 @@ function showToast(msg, type = 'info', duration = 3500) {
 
 // ─── API Fetch Helper ─────────────────────────────────────────────────────────
 async function apiFetch(url, opts = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
   try {
     const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       ...opts,
     });
+    clearTimeout(timeout);
     const data = await res.json();
     return data;
   } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') {
+      console.warn(`apiFetch(${url}) timed out after 15s`);
+      return { success: false, error: 'Request timed out. Please try again.' };
+    }
     console.error(`apiFetch(${url}) failed:`, e);
     return { success: false, error: e.message };
   }

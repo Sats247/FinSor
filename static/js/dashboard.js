@@ -11,12 +11,15 @@ async function loadMacro(force = false) {
   if (!data.success) return;
   const d = data.data;
   const CHIPS = [
-    ['m-nifty', 'm-nifty-chg', 'nifty50'],
-    ['m-sensex', 'm-sensex-chg', 'sensex'],
-    ['m-vix', 'm-vix-chg', 'india_vix'],
-    ['m-usdinr', 'm-usdinr-chg', 'usd_inr'],
-    ['m-brent', 'm-brent-chg', 'brent'],
-    ['m-gold', 'm-gold-chg', 'gold'],
+    ['m-nifty',       'm-nifty-chg',       'nifty50'],
+    ['m-sensex',      'm-sensex-chg',      'sensex'],
+    ['m-vix',         'm-vix-chg',         'india_vix'],
+    ['m-usdinr',      'm-usdinr-chg',      'usd_inr'],
+    ['m-brent',       'm-brent-chg',       'brent'],
+    ['m-gold',        'm-gold-chg',        'gold'],
+    ['m-sp500',       'm-sp500-chg',       'sp500'],
+    ['m-nasdaq100',   'm-nasdaq100-chg',   'nasdaq100'],
+    ['m-eurostoxx50', 'm-eurostoxx50-chg', 'eurostoxx50'],
   ];
   CHIPS.forEach(([valId, chgId, key]) => {
     const info = d[key] || {};

@@ -1,7 +1,6 @@
 flask
 flask-cors
 groq
-google-genai
 yfinance
 pandas
 numpy

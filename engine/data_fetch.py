@@ -23,8 +23,10 @@ CACHE_TTL = {
     'news': 120,
 }
 
-TICKERS = ['^NSEI', '^BSESN', '^INDIAVIX', 'USDINR=X', 'BZ=F', 'GC=F']
-TICKER_KEYS = ['nifty50', 'sensex', 'india_vix', 'usd_inr', 'brent', 'gold']
+TICKERS = ['^NSEI', '^BSESN', '^INDIAVIX', 'USDINR=X', 'BZ=F', 'GC=F',
+           '^GSPC', '^NDX', '^STOXX50E']
+TICKER_KEYS = ['nifty50', 'sensex', 'india_vix', 'usd_inr', 'brent', 'gold',
+               'sp500', 'nasdaq100', 'eurostoxx50']
 
 
 def _get_cached(key, ttl_key, fetch_fn, force_refresh=False):

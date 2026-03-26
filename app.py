@@ -331,6 +331,17 @@ def status():
 # API — MACRO & MARKET
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@app.route('/api/search')
+def api_search():
+    import urllib.parse
+    q = urllib.parse.unquote(request.args.get('q', '')).strip()
+    if not q or len(q) < 2:
+        return jsonify(success=True, data=[])
+    from engine.data_fetch import search_yahoo_stocks
+    results = search_yahoo_stocks(q)
+    return jsonify(success=True, data=results)
+
+
 @app.route('/api/macro')
 def api_macro():
     try:

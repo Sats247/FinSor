@@ -411,3 +411,26 @@ def get_stock_fundamentals(ticker):
     except Exception as e:
         logger.error(f"Fundamentals fetch failed for {ticker}: {e}")
         return None
+
+# ─── Yahoo Live Search ────────────────────────────────────────────────────────
+def search_yahoo_stocks(query):
+    """Hits the Yahoo Finance autocomplete endpoint for live stock ticker searches."""
+    url = 'https://query2.finance.yahoo.com/v1/finance/search'
+    params = {'q': query, 'quotesCount': 6, 'newsCount': 0}
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for quote in data.get('quotes', []):
+            if quote.get('quoteType') in ['EQUITY', 'MUTUALFUND', 'ETF']:
+                results.append({
+                    'ticker': quote.get('symbol', ''),
+                    'name': quote.get('longname') or quote.get('shortname') or quote.get('symbol', ''),
+                    'sector': quote.get('sectorDisp') or quote.get('quoteType') or ''
+                })
+        return results
+    except Exception as e:
+        logger.error(f"Yahoo Search failed: {e}")
+        return []

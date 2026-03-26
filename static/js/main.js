@@ -60,46 +60,54 @@ async function apiFetch(url, opts = {}) {
   }
 }
 
-// ─── Global Nav Search ────────────────────────────────────────────────────────
-let _tickers = [];
-async function initNavSearch() {
-  try {
-    const r = await fetch('/static/js/nse_tickers_cache.json'); // preloaded, or use data endpoint
-    _tickers = await r.json();
-  } catch {
-    // Fallback to static hardcoded set
-    _tickers = [
-      {ticker:'RELIANCE.NS',name:'Reliance Industries',sector:'Energy'},
-      {ticker:'HDFCBANK.NS',name:'HDFC Bank',sector:'Banking'},
-      {ticker:'TCS.NS',name:'Tata Consultancy Services',sector:'IT'},
-      {ticker:'INFY.NS',name:'Infosys',sector:'IT'},
-      {ticker:'HINDUNILVR.NS',name:'Hindustan Unilever',sector:'FMCG'},
-    ];
-  }
-
+let _searchTimeout = null;
+function initNavSearch() {
   const input = document.getElementById('nav-search-input');
   const dropdown = document.getElementById('nav-search-dropdown');
   if (!input || !dropdown) return;
 
   input.addEventListener('input', () => {
-    const q = input.value.toLowerCase().trim();
-    dropdown.innerHTML = '';
-    if (!q) { dropdown.classList.remove('open'); return; }
-    const matches = _tickers.filter(t =>
-      t.ticker.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)
-    ).slice(0, 6);
-    if (!matches.length) { dropdown.classList.remove('open'); return; }
-    matches.forEach(m => {
-      const el = document.createElement('div');
-      el.className = 'nav-search-item';
-      el.innerHTML = `<i data-lucide="trending-up" width="14" height="14"></i><strong>${m.ticker.replace('.NS','')}</strong> <span>${m.name}</span>`;
-      el.onclick = () => { input.value = ''; dropdown.classList.remove('open'); window.location.href = `/tools?ticker=${m.ticker}`; };
-      dropdown.appendChild(el);
-    });
-    lucide.createIcons({ nodes: [dropdown] });
+    const q = input.value.trim();
+    if (q.length < 2) {
+      dropdown.classList.remove('open');
+      dropdown.innerHTML = '';
+      return;
+    }
+    
+    if (_searchTimeout) clearTimeout(_searchTimeout);
+    
+    // Provide instant loading feedback
+    dropdown.innerHTML = '<div class="nav-search-item" style="color:var(--on-surface-muted);">Searching live...</div>';
     dropdown.classList.add('open');
+    
+    _searchTimeout = setTimeout(async () => {
+      const res = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
+      dropdown.innerHTML = '';
+      
+      if (!res.success || !res.data || res.data.length === 0) {
+        dropdown.innerHTML = '<div class="nav-search-item" style="color:var(--loss);">No results found for "'+q+'"</div>';
+        return;
+      }
+      
+      res.data.forEach(m => {
+        const el = document.createElement('div');
+        el.className = 'nav-search-item';
+        el.innerHTML = `<i data-lucide="trending-up" width="14" height="14"></i><strong>${m.ticker}</strong> <span>${m.name}</span> <span style="font-size:10px;color:var(--on-surface-muted);margin-left:auto;white-space:nowrap;">${m.sector || ''}</span>`;
+        if (m.ticker && m.ticker.includes('=')) {
+          // Currencies or forex generally shouldn't link to the tools page without care, but we'll allow it.
+        }
+        el.onclick = () => { input.value = ''; dropdown.classList.remove('open'); window.location.href = `/tools?ticker=${m.ticker}`; };
+        dropdown.appendChild(el);
+      });
+      lucide.createIcons({ nodes: [dropdown] });
+    }, 400); // 400ms debounce
   });
-  document.addEventListener('click', (e) => { if (!e.target.closest('.nav-search-wrap')) dropdown.classList.remove('open'); });
+  
+  document.addEventListener('click', (e) => { 
+    if (!e.target.closest('.nav-search-wrap')) {
+      dropdown.classList.remove('open');
+    }
+  });
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

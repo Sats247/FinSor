@@ -39,12 +39,29 @@ async function initToolsSearch() {
 }
 
 function initTradingView() {
-  const iframe = document.getElementById('tv-iframe');
-  if (!iframe) return;
+  const container = document.getElementById('tv-chart-container');
+  if (!container || typeof TradingView === 'undefined') return;
   const interval = document.getElementById('chart-interval') ? document.getElementById('chart-interval').value : 'D';
-  // URL encode the symbol (e.g. NSE:RELIANCE -> NSE%3ARELIANCE)
-  const encodedSymbol = encodeURIComponent(currentTicker);
-  iframe.src = `https://www.tradingview.com/widgetembed/?frameElementId=tv-iframe&symbol=${encodedSymbol}&interval=${interval}&hidesidetoolbar=0&hidetoptoolbar=0&theme=light&style=1&timezone=Asia%2FKolkata&studies=RSI%40tv-basicstudies&locale=en`;
+  // currentTicker is formatted as 'NSE:RELIANCE', which is correct for JS API
+  
+  new TradingView.widget({
+    "autosize": true,
+    "symbol": currentTicker,
+    "interval": interval,
+    "timezone": "Asia/Kolkata",
+    "theme": "light",
+    "style": "1",
+    "locale": "en",
+    "enable_publishing": false,
+    "hide_top_toolbar": false,
+    "hide_legend": false,
+    "save_image": false,
+    "container_id": "tv-chart-container",
+    "hide_side_toolbar": false,
+    "studies": [
+      "RSI@tv-basicstudies"
+    ]
+  });
 }
 
 async function changeTicker(nse_ticker) {

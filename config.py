@@ -5,8 +5,15 @@ load_dotenv(override=True)
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY')
-GEMINI_MODEL_PRIMARY = 'gemini-2.0-flash'
-GEMINI_MODEL_FALLBACK = 'gemini-2.0-flash-lite'
+GEMINI_MODEL_PRIMARY   = 'gemini-2.5-flash'
+GEMINI_MODEL_FALLBACK  = 'gemini-2.0-flash'
+# Ordered list tried by call_genie / get_smart_regime if primary is exhausted
+GEMINI_MODEL_CHAIN = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-flash-latest',
+]
 DB_PATH = 'finsor.db'
 CACHE_TTL_MACRO = 60        # seconds
 CACHE_TTL_FUNDS = 300       # seconds

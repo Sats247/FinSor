@@ -4,6 +4,7 @@ retry logic, and audit logging. The model NEVER generates financial numbers.
 """
 
 import html as html_module
+import json
 import logging
 import time
 
@@ -11,8 +12,7 @@ from google import genai
 
 from config import (
     GEMINI_API_KEY,
-    GEMINI_MODEL_PRIMARY,
-    GEMINI_MODEL_FALLBACK,
+    GEMINI_MODEL_CHAIN,
     MAX_CHAT_HISTORY,
     MAX_INPUT_LENGTH,
 )
@@ -192,24 +192,30 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
         for m in capped_history
     ]) if capped_history else "No prior conversation."
 
-    # Assemble system prompt
+    # Assemble system prompt — kept separate from user message
     system_prompt = GEMINI_SYSTEM_PROMPT.format(
         macro_context=macro_context or "Live market data temporarily unavailable.",
         user_profile=user_profile or "User profile not available.",
         conversation_history=history_str,
     ) + bias_instruction
 
-    full_prompt = system_prompt + f"\n\nUSER MESSAGE: {user_message}"
+    # User-facing content only (no system prompt concatenation)
+    user_content = f"USER MESSAGE: {user_message}"
 
-    model_used = None
-    for model_name in [GEMINI_MODEL_PRIMARY, GEMINI_MODEL_FALLBACK]:
+    for model_name in GEMINI_MODEL_CHAIN:
         try:
             response = client.models.generate_content(
                 model=model_name,
-                contents=full_prompt,
+                contents=user_content,
+                # FIX: system_instruction is passed via GenerateContentConfig,
+                # NOT prepended to contents. This is required by the google-genai SDK.
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.7,
+                    max_output_tokens=1024,
+                ),
             )
             text = response.text
-            model_used = model_name
 
             # Audit log
             if db_conn and user_id:
@@ -221,19 +227,22 @@ def call_genie(user_message, conversation_history, macro_context, user_profile, 
                         (user_id, '', '', f"msg_len={len(user_message)}, model={model_name}", bias or 'none')
                     )
                     db_conn.commit()
-                except Exception:
-                    pass
+                except Exception as db_err:
+                    logger.warning(f"Audit log write failed: {db_err}")
 
             return {
                 'response': text,
                 'model_used': model_name,
                 'bias_detected': bias,
             }
+
         except Exception as e:
-            logger.error(f"Gemini call failed with {model_name}: {e}")
+            # Log the full exception so you can actually debug it
+            logger.error(f"Gemini call failed with {model_name}: {type(e).__name__}: {e}")
             continue
 
     # Both models failed
+    logger.error("Both primary and fallback Gemini models failed. Returning static fallback.")
     return {
         'response': FALLBACK_RESPONSE,
         'model_used': 'fallback',
@@ -269,15 +278,15 @@ def get_smart_regime(macro_signals):
         "Also provide a 1-sentence analytical reason for your choice (max 20 words).\n"
         "Return ONLY a valid JSON object in this exact format: {\"regime\": \"...\", \"reason\": \"...\"}"
     )
-    user_prompt = f"""
-    Nifty 50: {nifty}
-    Nifty 200DMA: {nifty_200}
-    India VIX: {vix}
-    USD/INR: {usd}
-    Brent Crude: {brent}
-    """
+    user_prompt = (
+        f"Nifty 50: {nifty}\n"
+        f"Nifty 200DMA: {nifty_200}\n"
+        f"India VIX: {vix}\n"
+        f"USD/INR: {usd}\n"
+        f"Brent Crude: {brent}"
+    )
 
-    for model_name in [GEMINI_MODEL_PRIMARY, GEMINI_MODEL_FALLBACK]:
+    for model_name in GEMINI_MODEL_CHAIN:
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -287,30 +296,32 @@ def get_smart_regime(macro_signals):
                     temperature=0.1,
                     max_output_tokens=100,
                     response_mime_type="application/json",
-                )
+                ),
             )
-            import json
             data = json.loads(response.text.strip())
-            
+
             # Sanitize regime
             valid_regimes = ['Bull', 'Bear', 'Neutral', 'Overheated']
             if data.get('regime') not in valid_regimes:
                 data['regime'] = 'Neutral'
-                
+
             _regime_cache = {'ts': time.time(), 'data': data}
             return data
-            
+
         except Exception as e:
-            logger.error(f"Smart Regime failed with {model_name}: {e}")
+            logger.error(f"Smart Regime failed with {model_name}: {type(e).__name__}: {e}")
             continue
-            
-    # Hardcoded deterministic fallback if AI fails completely (like quota limits)
+
+    # Deterministic fallback if AI fails completely (e.g. quota limits)
     fallback = {'regime': 'Neutral', 'reason': 'AI over limit. Base MMI metrics show neutral bias.'}
     if vix != 'N/A' and isinstance(vix, (int, float)):
         if vix > 22:
             fallback = {'regime': 'Bear', 'reason': 'High implied volatility suggests increased fear and downside risk.'}
-        elif nifty != 'N/A' and isinstance(nifty, (int, float)) and nifty_200 != 'N/A' and isinstance(nifty_200, (int, float)):
+        elif (
+            nifty != 'N/A' and isinstance(nifty, (int, float))
+            and nifty_200 != 'N/A' and isinstance(nifty_200, (int, float))
+        ):
             if nifty > nifty_200 and vix < 15:
                 fallback = {'regime': 'Bull', 'reason': 'Index trending above 200DMA amidst stable volatility.'}
-            
+
     return fallback

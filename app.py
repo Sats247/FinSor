@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 from engine import calc, data_fetch, risk_engine
 from engine.gemini_client import (build_macro_context, build_user_profile_context,
                                    call_genie)
+from engine.sip_model import get_model as get_sip_model
 
 # ─── Data Loading ──────────────────────────────────────────────────────────────
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -1182,6 +1183,110 @@ def api_status_check():
 
     results['checked_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     return jsonify({'success': True, 'data': results})
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SIPs — ETF RECOMMENDATION ENGINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/sips')
+def sips():
+    return render_template('sips.html', user=session.get('user_data', {}))
+
+
+@app.route('/api/predict-sip', methods=['POST'])
+def api_predict_sip():
+    """
+    Accepts: {"age": int, "risk": int, "sip_amount": float}
+    Returns: per-ETF percentage and exact rupee allocation.
+    """
+    try:
+        body       = request.get_json() or {}
+        age        = max(18, min(65, int(body.get('age', 30))))
+        risk       = max(1,  min(10, int(body.get('risk', 5))))
+        sip_amount = max(100, float(body.get('sip_amount', 5000)))
+
+        model   = get_sip_model()
+        weights = model.predict(age, risk)  # {BANK, GOLD, NIFTY, SILVER: float}
+
+        def fmt_rupee(n):
+            if n >= 1e7:  return f'₹{n/1e7:.2f}Cr'
+            if n >= 1e5:  return f'₹{n/1e5:.1f}L'
+            if n >= 1000: return f'₹{n/1000:.1f}K'
+            return f'₹{round(n):,}'
+
+        data = {}
+        for key, frac in weights.items():
+            rupees = frac * sip_amount
+            data[f'{key}_pct']   = f'{round(frac * 100)}%'
+            data[f'{key}_rupee'] = fmt_rupee(rupees)
+            data[f'{key}_frac']  = round(frac, 4)
+
+        return jsonify({'success': True, 'data': data})
+
+    except Exception as e:
+        logger.error(f'api_predict_sip error: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/sips/upload-csv', methods=['POST'])
+def api_sips_upload_csv():
+    """
+    Accepts a multipart CSV file upload.
+    Saves it as merged_etf_data.csv in the project root, then retrains the
+    SIP model in-place — no Flask restart required.
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file in request'}), 400
+
+        f = request.files['file']
+        if not f.filename or not f.filename.endswith('.csv'):
+            return jsonify({'success': False, 'error': 'Please upload a .csv file'}), 400
+
+        # Save to project root
+        save_path = os.path.join(os.path.dirname(__file__), 'merged_etf_data.csv')
+        f.save(save_path)
+        logger.info(f'SIPs CSV uploaded to {save_path}')
+
+        # Retrain model in-place (no Flask restart needed)
+        model = get_sip_model()
+        stats = model.retrain_from_csv(save_path)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'message':   f'Model retrained on your CSV ({stats["rows"]} rows, {stats["format"]} format)',
+                'source':    model.source,
+                'n_samples': model.n_samples,
+                'stats':     stats,
+            }
+        })
+
+    except ValueError as ve:
+        logger.warning(f'api_sips_upload_csv bad CSV: {ve}')
+        return jsonify({'success': False, 'error': str(ve)}), 422
+    except Exception as e:
+        logger.error(f'api_sips_upload_csv error: {e}')
+        return jsonify({'success': False, 'error': 'Upload failed — check server logs'}), 500
+
+
+@app.route('/api/sips/model-status')
+def api_sips_model_status():
+    """Returns current training source and stats for the UI status badge."""
+    try:
+        m = get_sip_model()
+        return jsonify({
+            'success': True,
+            'data': {
+                'source':    m.source,
+                'n_samples': m.n_samples,
+                'stats':     m.csv_stats,
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -36,9 +36,7 @@
           <a href="/sips" class="nav-item {% if request.endpoint == 'sips' %}active{% endif %}" id="nav-sips">
             <i data-lucide="pie-chart" width="20" height="20"></i> ETF SIPs
           </a>
-          <a href="/status" class="nav-item {% if request.endpoint == 'status' %}active{% endif %}" id="nav-status">
-            <i data-lucide="activity" width="20" height="20"></i> Status
-          </a>
+
         </nav>
       </div>
       <div class="sidebar-footer">
@@ -61,11 +59,7 @@
         <a href="/dashboard" style="text-decoration:none;">
           <span class="wordmark"><span class="wordmark-fin">Fin</span><span class="wordmark-sor">Sor</span></span>
         </a>
-        <div class="nav-search-wrap">
-          <i data-lucide="search" width="16" height="16" class="nav-search-icon"></i>
-          <input type="text" class="nav-search" id="nav-search-input" placeholder="Search any stock — RELIANCE, INFY, TCS..." autocomplete="off">
-          <div class="nav-search-dropdown" id="nav-search-dropdown"></div>
-        </div>
+        <!-- Global search bar removed; users use the native TradingView search inside the tools widget for the MVP presentation -->
         <div class="topnav-right">
           <div class="notif-wrapper" id="notif-wrapper">
             <i data-lucide="bell" width="20" height="20" style="color:var(--on-surface-variant);display:block;"></i>

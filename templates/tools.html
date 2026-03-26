@@ -10,13 +10,7 @@ endblock %}
     <p style="color:var(--on-surface-muted);font-size:var(--text-base);">TradingView · Calculator · Fundamentals</p>
   </div>
   <div style="display:flex;gap:10px;align-items:center;">
-    <div class="input-with-icon" style="position:relative;">
-      <i data-lucide="search" width="16" height="16" class="input-icon-left"></i>
-      <input type="text" class="input-field" id="tools-search" placeholder="Search — RELIANCE, HDFCBANK..."
-        style="padding-left:36px;width:280px;" oninput="searchStock()">
-      <div class="nav-search-dropdown" id="tools-search-dropdown"
-        style="top:calc(100% + 4px);left:0;right:0;z-index:200;"></div>
-    </div>
+    <!-- Tool search bar removed for MVP to simplify UI and direct users to TradingView widget native search -->
     <select class="input-field" id="chart-interval" style="height:44px;font-size:var(--text-sm);"
       onchange="updateChart()">
       <option value="D">Daily</option>

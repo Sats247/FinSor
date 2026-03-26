@@ -80,70 +80,118 @@ While we have provided a temporary key in `.env.example`, the system also contai
 ---
 
 *This project is a hackathon MVP submission. For educational purposes only.*
+# PHASE - 2 (Product summary):
 
+# Why FinSor
 
-PHASE - 2(Product summary):
-Why FinSor
+---
 
-1. Stress-Tested Wealth Simulation (Not Just Projections)
+## 1. Stress-Tested Wealth Simulation (Not Just Projections):
+
 We move beyond linear “happy-path” calculators by modeling adverse conditions:
-Job Disruption Modeling: Simulates pauses in SIPs due to income shocks
-Market Shock Simulation: Recreates downturn scenarios (e.g., 2008/2020 analogs)
-Inflation-Adjusted Outputs: Displays real purchasing power, not nominal returns
-Probabilistic Outcomes: Provides worst / likely / best-case bands instead of a single misleading estimate
-Outcome: Users understand downside risk before it happens. Brands like zerodha, groww only have sip calculators with data like monthly investment, expected return and time period. They do not possess "DISASTER SCENARIO" simulators like how we have implemented.
 
-2. Hybrid Intelligence: ML + RAG (Not a Chatbot)
+- Job Disruption Modeling: Simulates pauses in SIPs due to income shocks  
+- Market Shock Simulation: Recreates downturn scenarios (e.g., 2008/2020 analogs)  
+- Inflation-Adjusted Outputs: Displays real purchasing power, not nominal returns  
+- Probabilistic Outcomes: Provides worst / likely / best-case bands instead of a single misleading estimate  
+
+**Outcome:**  
+Users understand downside risk before it happens.  
+
+Brands like zerodha, groww only have sip calculators with data like monthly investment, expected return and time period. They do not possess "DISASTER SCENARIO" simulators like how we have implemented.
+
+---
+
+## 2. Hybrid Intelligence: ML + RAG (Not a Chatbot)
+
 FinSor separates mathematical decisioning from contextual reasoning:
-📊 ML Engine (Deterministic)
-RandomForestRegressor model trained on ETF + SIP historical data (Kaggle + enriched features(finetuned by us))
-Incorporates risk score, age, and investment horizon
-Outputs pure numerical recommendations (non-LLM, no token-based inference)
-Eliminates ambiguity seen in typical chatbot suggestions and gpt wrappers.
-🧠 RAG Research Genie (Advisory Layer)
-Built on a Groq-powered Retrieval-Augmented Generation pipeline (RAG PIPELINE)
-Integrates:
-Portfolio + user profile context
-Yahoo Finance API (market data)
-Google RSS (news sentiment)
-Polymarket (forward-looking signals)
-Performs bias detection (FOMO, loss aversion)
-Enforces grounded responses only (no hallucinated metrics)
-Outcome:
-ML = what you should do mathematically
-RAG = why it makes sense in current conditions - explanations to the user.
 
-3. True Personalization (State-Aware System)
+### 📊 ML Engine (Deterministic)
+
+- RandomForestRegressor model trained on ETF + SIP historical data (Kaggle + enriched features(finetuned by us))  
+- Incorporates risk score, age, and investment horizon  
+- Outputs pure numerical recommendations (non-LLM, no token-based inference)  
+- Eliminates ambiguity seen in typical chatbot suggestions and gpt wrappers  
+
+### 🧠 RAG Research Genie (Advisory Layer)
+
+- Built on a Groq-powered Retrieval-Augmented Generation pipeline (RAG PIPELINE)  
+
+**Integrates:**
+- Portfolio + user profile context  
+- Yahoo Finance API (market data)  
+- Google RSS (news sentiment)  
+- Polymarket (forward-looking signals)  
+
+- Performs bias detection (FOMO, loss aversion)  
+- Enforces grounded responses only (no hallucinated metrics)  
+
+**Outcome:**
+- ML = what you should do mathematically  
+- RAG = why it makes sense in current conditions - explanations to the user  
+
+---
+
+## 3. True Personalization (State-Aware System)
+
 Decisions are based on:
-Portfolio composition
-Risk tolerance
-Age & financial goals
-No static outputs — every response is state-dependent and user-specific
 
-4. Data Ownership & Portability
-CSV Import with validation (symbols, quantities)
-Full export capability (no vendor lock-in)
-Outcome: Users retain control over their financial data.
+- Portfolio composition  
+- Risk tolerance  
+- Age & financial goals  
 
-5. Action-Oriented Tooling (Not Just Insights)
-SIP, Lumpsum, CAGR, and Goal-Seek calculators
-Tax-loss harvesting insights
-Graph-based financial visualization
+No static outputs — every response is state-dependent and user-specific  
+
+---
+
+## 4. Data Ownership & Portability
+
+- CSV Import with validation (symbols, quantities)  
+- Full export capability (no vendor lock-in)  
+
+**Outcome:**  
+Users retain control over their financial data.
+
+---
+
+## 5. Action-Oriented Tooling (Not Just Insights)
+
+- SIP, Lumpsum, CAGR, and Goal-Seek calculators  
+- Tax-loss harvesting insights  
+- Graph-based financial visualization  
+
 All of this is based on mathematical and statistical formulas, not just blind LLM usage.
 
-6. Structured User Flow
+---
+
+## 6. Structured User Flow
+
 Login → Risk Profiling → Dashboard → Portfolio Upload → Actionable Insights
 
-Key Differentiator
-Most platforms rely solely on LLMs for advisory, which produce probabilistic, language-based outputs.
-FinSor instead:
-Uses ML for deterministic financial computation
-Uses RAG for real-time, context-aware reasoning
-This hybrid architecture ensures:
-Accuracy (heavily math-driven, using statistical formulas to deal with calculations.)
-Relevance (live data-driven)
-Reliability (no knowledge cutoff limitations)
+---
 
-Bottom Line
-FinSor is not a calculator or a chatbot.
+## Key Differentiator
+
+Most platforms rely solely on LLMs for advisory, which produce probabilistic, language-based outputs.  
+
+FinSor instead:
+
+- Uses ML for deterministic financial computation  
+- Uses RAG for real-time, context-aware reasoning  
+
+This hybrid architecture ensures:
+
+- Accuracy (heavily math-driven, using statistical formulas to deal with calculations.)  
+- Relevance (live data-driven)  
+- Reliability (no knowledge cutoff limitations)  
+
+---
+
+## Bottom Line
+
+FinSor is not a calculator or a chatbot.  
+
 It is a decision-support system for anyone and everyone interested in trading, and is operating under uncertainity.
+"""
+
+

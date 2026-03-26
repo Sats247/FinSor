@@ -135,6 +135,25 @@
   </div>
 </div>
 
+<!-- Global Markets Embedded Iframe -->
+<div class="card" style="margin-top:20px;padding:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div>
+        <h2 class="card-title" style="margin-bottom:4px;">Global Markets Live</h2>
+        <p class="card-subtitle">Track real-time indices and stocks from around the world.</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <span style="font-size:var(--text-xs); color:var(--primary); background:rgba(37,99,235,0.1); padding:6px 12px; border-radius:12px; font-weight:600; display:flex; align-items:center;">
+        <i data-lucide="info" width="14" height="14" style="margin-right:6px;"></i>
+        For this prototype, this widget demonstrates that stocks are moving and lets you see live data updates natively.
+      </span>
+    </div>
+  </div>
+  <div style="height:650px; width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border, #e2e8f0);" id="tvIframeWrapper">
+    <iframe id="tvLiveIframe" scrolling="no" allowtransparency="true" frameborder="0" src="https://s.tradingview.com/embed-widget/market-overview/?locale=en#%7B%22colorTheme%22%3A%22light%22%2C%22dateRange%22%3A%221D%22%2C%22showChart%22%3Atrue%2C%22locale%22%3A%22en%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A%22650%22%2C%22largeChartUrl%22%3A%22%22%2C%22isTransparent%22%3Atrue%2C%22showSymbolLogo%22%3Atrue%2C%22showFloatingTooltip%22%3Atrue%2C%22tabs%22%3A%5B%7B%22title%22%3A%22Indian%20Stocks%22%2C%22symbols%22%3A%5B%7B%22s%22%3A%22BSE%3ASENSEX%22%2C%22d%22%3A%22Sensex%22%7D%5D%7D%2C%7B%22title%22%3A%22Global%20Markets%22%2C%22symbols%22%3A%5B%7B%22s%22%3A%22FOREXCOM%3ASPXUSD%22%2C%22d%22%3A%22S%26P%20500%22%7D%2C%7B%22s%22%3A%22NASDAQ%3AAAPL%22%2C%22d%22%3A%22Apple%20Inc%22%7D%2C%7B%22s%22%3A%22NASDAQ%3ATSLA%22%2C%22d%22%3A%22Tesla%22%7D%2C%7B%22s%22%3A%22NASDAQ%3AMSFT%22%2C%22d%22%3A%22Microsoft%22%7D%2C%7B%22s%22%3A%22NASDAQ%3ANVDA%22%2C%22d%22%3A%22Nvidia%22%7D%5D%7D%5D%7D" style="box-sizing: border-box; height: 100%; width: 100%; display:block;"></iframe>
+  </div>
+</div>
+
 <!-- Add Symbol Modal -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal-box">

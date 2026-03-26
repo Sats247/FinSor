@@ -483,7 +483,7 @@ def api_genie():
 
         macro = data_fetch.get_macro_signals() or {}
         news = data_fetch.get_news_headlines()
-        poly = data_fetch.get_polymarket_signals()
+        poly = data_fetch.fetch_predictions()
         vix = macro.get('india_vix', {}).get('value')
         nifty = macro.get('nifty50', {}).get('value')
         nifty_200dma = macro.get('nifty_200dma')

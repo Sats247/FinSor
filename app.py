@@ -13,7 +13,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import (Flask, jsonify, redirect, render_template, request,
@@ -403,19 +403,12 @@ def api_regime():
 @app.route('/api/predictions')
 def api_predictions():
     try:
-        poly = data_fetch.get_polymarket_signals()
-        meta = data_fetch.get_metaculus_signals()
-        return jsonify({
-            'success': True,
-            'data': {
-                'polymarket': poly,
-                'metaculus': meta,
-                'fetched_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            }
-        })
+        from engine.data_fetch import fetch_predictions
+        data = fetch_predictions()
+        return jsonify({"predictions": data, "source": "Polymarket"})
     except Exception as e:
-        logger.error(f"api_predictions error: {e}")
-        return jsonify({'success': True, 'data': {'polymarket': [], 'metaculus': [], 'fetched_at': ''}})
+        app.logger.error(f"api_predictions error: {e}")
+        return jsonify({"predictions": [], "source": "Polymarket"})
 
 
 @app.route('/api/news')
@@ -569,10 +562,11 @@ def api_portfolio_upload():
         file = request.files['file']
         content = file.read().decode('utf-8')
         reader = csv.DictReader(io.StringIO(content))
-        required_cols = {'ticker', 'quantity', 'purchase_date', 'type', 'name'}
-
-        if not required_cols.issubset(set(reader.fieldnames or [])):
-            return error_json('CSV missing required columns: ' + ', '.join(required_cols), 'CSV_INVALID')
+        
+        headers = reader.fieldnames or []
+        normalized_headers = [h.strip().lower().replace(' ', '_') for h in headers if h]
+        if 'ticker' not in normalized_headers or 'quantity' not in normalized_headers:
+            return error_json('CSV must contain Ticker and Quantity columns', 'CSV_INVALID')
 
         db = get_db()
         db.execute('DELETE FROM holdings WHERE user_id = ?', (user_id,))
@@ -584,16 +578,34 @@ def api_portfolio_upload():
             if i >= 200:
                 break
             try:
-                ticker = sanitize(row.get('ticker', '').strip(), 30)
-                name = sanitize(row.get('name', '').strip(), 100)
-                quantity = float(row.get('quantity', 0))
-                purchase_date = row.get('purchase_date', '').strip()
-                h_type = row.get('type', 'stock').strip().lower()
-                purchase_price_raw = row.get('purchase_price', '').strip()
+                n_row = {k.strip().lower().replace(' ', '_'): str(v).strip() for k, v in row.items() if k}
+                
+                ticker = sanitize(n_row.get('ticker', ''), 30)
+                name = sanitize(n_row.get('name', ''), 100)
+                quantity_str = n_row.get('quantity', '0')
+                if not quantity_str: quantity_str = '0'
+                quantity = float(quantity_str)
+                
+                if not ticker or quantity <= 0:
+                    skipped += 1; skipped_rows.append(f"Row {i+2}: missing ticker/quantity"); continue
+                
+                h_type = n_row.get('type', 'stock').lower()
+                if not h_type: h_type = 'stock'
+
+                purchase_price_raw = n_row.get('buy_price', '') or n_row.get('purchase_price', '')
+                
+                purchase_date = n_row.get('purchase_date', '') or n_row.get('date', '')
+                if not purchase_date:
+                    days_held = n_row.get('days_held')
+                    if days_held and days_held.isdigit():
+                        purchase_date = (datetime.now() - timedelta(days=int(days_held))).strftime('%Y-%m-%d')
+                    else:
+                        purchase_date = datetime.now().strftime('%Y-%m-%d')
+                else:
+                    datetime.strptime(purchase_date, '%Y-%m-%d')
 
                 if h_type not in ('stock', 'etf', 'mf'):
                     skipped += 1; skipped_rows.append(f"Row {i+2}: invalid type"); continue
-                datetime.strptime(purchase_date, '%Y-%m-%d')
 
                 purchase_price = float(purchase_price_raw) if purchase_price_raw else None
                 if purchase_price is None and h_type == 'mf':

@@ -330,18 +330,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Auto-refresh toggle
-  let autoRefreshInterval = null;
-  const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-  if (autoRefreshToggle) {
-    autoRefreshToggle.addEventListener('change', (e) => {
+  // Live Updates Toggle
+  let liveUpdateInterval = null;
+  const REFRESH_INTERVAL = 5000; // 5 seconds
+
+  function refreshStockData() {
+    // Reuse loadMacro(true) as our refresh endpoint and ignore errors
+    loadMacro(true).catch(e => console.warn("Auto-refresh error (silent):", e));
+  }
+
+  function startLiveUpdates() {
+    const liveIndicator = document.getElementById('liveIndicator');
+    if (liveIndicator) liveIndicator.style.display = 'flex';
+    
+    // Initial immediate refresh
+    refreshStockData();
+    
+    // Prevent multiple intervals
+    if (liveUpdateInterval) clearInterval(liveUpdateInterval);
+    
+    // Set up interval
+    liveUpdateInterval = setInterval(() => {
+      refreshStockData();
+    }, REFRESH_INTERVAL);
+  }
+
+  function stopLiveUpdates() {
+    const liveIndicator = document.getElementById('liveIndicator');
+    if (liveIndicator) liveIndicator.style.display = 'none';
+    
+    // Clear interval
+    if (liveUpdateInterval) {
+      clearInterval(liveUpdateInterval);
+      liveUpdateInterval = null;
+    }
+  }
+
+  const liveUpdateToggle = document.getElementById('liveUpdateToggle');
+  if (liveUpdateToggle) {
+    liveUpdateToggle.addEventListener('change', function(e) {
       if (e.target.checked) {
-        autoRefreshInterval = setInterval(() => {
-          loadMacro(true);
-        }, 5000);
+        startLiveUpdates();
       } else {
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
+        stopLiveUpdates();
+      }
+    });
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+      stopLiveUpdates();
+    });
+
+    // Pause updates when tab is not visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && liveUpdateToggle.checked) {
+        stopLiveUpdates();
+      } else if (!document.hidden && liveUpdateToggle.checked) {
+        startLiveUpdates();
       }
     });
   }

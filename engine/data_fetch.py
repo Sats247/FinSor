@@ -154,9 +154,70 @@ def _fetch_polymarket():
 
 
 def get_polymarket_signals():
-    """Returns up to 3 India-relevant Polymarket prediction markets."""
-    result = _get_cached('polymarket', 'polymarket', _fetch_polymarket)
-    return result if result else []
+    import requests
+from datetime import datetime
+
+def get_polymarket_signals():
+    """
+    Fetches active, India-relevant prediction market signals from Polymarket Gamma API.
+    """
+    # Use /events for better grouped metadata, or /search for keyword precision
+    BASE_URL = "https://gamma-api.polymarket.com/events"
+    
+    # Strict 2026 Parameters
+    params = {
+        "active": "true",     # Only current markets
+        "closed": "false",    # Only open for trading
+        "limit": 500          # Scan top 500 to catch Indian events
+    }
+    
+    try:
+        response = requests.get(BASE_URL, params=params, timeout=5)
+        if response.status_code != 200:
+            return []
+            
+        events = response.json()
+        india_signals = []
+        
+        # Keywords for India-relevant research
+        keywords = ['India', 'RBI', 'Nifty', 'Sensex', 'Modi', 'INR', 'BSE']
+        
+        for event in events:
+            # Check if title or description mentions India
+            title = event.get('title', '')
+            if any(k.lower() in title.lower() for k in keywords):
+                # Events usually have a 'markets' list; we grab the primary one
+                markets = event.get('markets', [])
+                if not markets: continue
+                
+                market = markets[0]
+                # Probability is usually outcomePrices[0] for the 'Yes' outcome
+                import json
+                try:
+                    prices_raw = market.get('outcomePrices', '["0.5", "0.5"]')
+                    if not prices_raw or prices_raw == 'None':
+                        prices_raw = '["0.5", "0.5"]'
+                    prices = json.loads(prices_raw)
+                    prob = float(prices[0])
+                    
+                    vol_val = event.get('volume24hr')
+                    vol = float(vol_val) if vol_val is not None else 0.0
+                    
+                    india_signals.append({
+                        "question": title,
+                        "probability": prob,
+                        "volume_usd": vol
+                    })
+                except Exception as e:
+                    logger.warning(f"Polymarket Parsing Error: {title} | {e}")
+                    continue
+        
+        # Sort by volume and return top 3
+        return sorted(india_signals, key=lambda x: x['volume_usd'], reverse=True)[:3]
+        
+    except Exception as e:
+        print(f"Polymarket Fetch Error: {e}")
+        return []
 
 
 # ─── Metaculus ────────────────────────────────────────────────────────────────

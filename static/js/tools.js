@@ -1,9 +1,17 @@
-/* tools.js */
 let tvWidget = null;
 let currentTicker = 'NSE:RELIANCE';
 let activeCalcType = 'sip';
 let sensitivityChart = null;
 let allTickers = [];
+
+// Colour palette — hex values so Chart.js can render them correctly
+const CHART_COLORS = {
+  primary: '#0058be',
+  gain:    '#00855b',
+  loss:    '#c0392b',
+  warning: '#b45309',
+  neutral: '#6b7280',
+};
 
 async function initToolsSearch() {
   try {
@@ -31,26 +39,12 @@ async function initToolsSearch() {
 }
 
 function initTradingView() {
-  if (!window.TradingView) return;
+  const iframe = document.getElementById('tv-iframe');
+  if (!iframe) return;
   const interval = document.getElementById('chart-interval') ? document.getElementById('chart-interval').value : 'D';
-  tvWidget = new TradingView.widget({
-    symbol: currentTicker,
-    interval,
-    container_id: 'tv-widget',
-    width: '100%',
-    height: 500,
-    timezone: 'Asia/Kolkata',
-    theme: 'light',
-    style: '1',
-    locale: 'en',
-    toolbar_bg: 'var(--surface-low)',
-    hide_side_toolbar: false,
-    allow_symbol_change: true,
-    studies: ['RSI@tv-basicstudies'],
-    show_popup_button: false,
-    no_referral_id: true,
-    withdateranges: true,
-  });
+  // URL encode the symbol (e.g. NSE:RELIANCE -> NSE%3ARELIANCE)
+  const encodedSymbol = encodeURIComponent(currentTicker);
+  iframe.src = `https://www.tradingview.com/widgetembed/?frameElementId=tv-iframe&symbol=${encodedSymbol}&interval=${interval}&hidesidetoolbar=0&hidetoptoolbar=0&theme=light&style=1&timezone=Asia%2FKolkata&studies=RSI%40tv-basicstudies&locale=en`;
 }
 
 async function changeTicker(nse_ticker) {
@@ -135,8 +129,15 @@ function renderSensitivity(s) {
   const values = [s.sip_amount_impact * 100, s.time_horizon_impact * 100, s.return_rate_impact * 100];
   sensitivityChart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: ['var(--primary)', 'var(--gain)', 'var(--warning)'], borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter' }, color: '#4a5568' } } } },
+    data: { labels, datasets: [{ data: values, backgroundColor: [CHART_COLORS.primary, CHART_COLORS.gain, CHART_COLORS.warning], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter' }, color: '#4a5568',
+        generateLabels: (chart) => chart.data.labels.map((l, i) => ({
+          text: l, fillStyle: chart.data.datasets[0].backgroundColor[i],
+          strokeStyle: 'transparent', lineWidth: 0,
+        }))
+      }}}
+    },
   });
   const noteEl = document.getElementById('sensitivity-note');
   const max = Math.max(...values);

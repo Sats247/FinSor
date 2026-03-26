@@ -44,18 +44,35 @@ async function loadRegime() {
 function updateMMI(score, label, summary) {
   const scoreEl = document.getElementById('mmi-score');
   const labelEl = document.getElementById('mmi-label');
-  const needleEl = document.getElementById('mmi-needle');
+  const barFear = document.getElementById('mmi-bar-fear');
+  const barGreed = document.getElementById('mmi-bar-greed');
   const summaryEl = document.getElementById('mmi-summary');
+  
   if (scoreEl) scoreEl.textContent = score;
   if (labelEl) {
     labelEl.textContent = label;
     const colors = { 'Extreme Fear': 'var(--loss)', 'Fear': 'var(--loss)', 'Neutral': 'var(--on-surface-muted)', 'Greed': 'var(--gain)', 'Extreme Greed': 'var(--gain)' };
     labelEl.style.color = colors[label] || 'var(--primary)';
   }
-  if (needleEl) {
-    const angle = -90 + (score / 100) * 180;
-    needleEl.style.transform = `rotate(${angle}deg)`;
+  
+  if (barFear && barGreed) {
+    if (score < 50) {
+      // Fear: width grows from center to left. Total container is 100%, center is 50%.
+      const fearPct = 50 - score;
+      barFear.style.width = `${fearPct}%`;
+      barGreed.style.width = '0%';
+    } else if (score > 50) {
+      // Greed: width grows from center to right
+      const greedPct = score - 50;
+      barGreed.style.width = `${greedPct}%`;
+      barFear.style.width = '0%';
+    } else {
+      // Neutral
+      barFear.style.width = '0%';
+      barGreed.style.width = '0%';
+    }
   }
+  
   if (summaryEl) summaryEl.textContent = summary || '';
 }
 

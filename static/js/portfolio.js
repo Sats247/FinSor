@@ -177,7 +177,12 @@ function exportHoldingsCSV() {
   const rows = allHoldings.map(h =>
     [h.ticker, h.name, h.type, h.quantity, h.purchase_price || '', h.current_price || '', h.pnl_abs || '', h.pnl_pct || '', h.tax_label, h.days_held].join(','));
   const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'finsor_portfolio.csv'; a.click();
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(blob); 
+  a.download = 'finsor_portfolio.csv'; 
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 document.addEventListener('DOMContentLoaded', loadHoldings);

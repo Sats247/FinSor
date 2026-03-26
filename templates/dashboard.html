@@ -31,22 +31,14 @@
         </span>
       </div>
       <div class="mmi-gauge-wrap">
-        <svg class="mmi-svg" viewBox="0 0 200 110" id="mmi-svg">
-          <defs>
-            <linearGradient id="mmiGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="var(--loss)"/>
-              <stop offset="50%" stop-color="var(--warning)"/>
-              <stop offset="100%" stop-color="var(--gain)"/>
-            </linearGradient>
-          </defs>
-          <!-- Arc track -->
-          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--surface-container)" stroke-width="10" stroke-linecap="round"/>
-          <!-- Arc fill -->
-          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#mmiGradient)" stroke-width="10" stroke-linecap="round"/>
-          <!-- Needle -->
-          <line class="mmi-needle" id="mmi-needle" x1="100" y1="100" x2="100" y2="30" stroke="var(--on-surface)" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="100" cy="100" r="5" fill="var(--on-surface)"/>
-        </svg>
+        <div class="mmi-bar-wrap" style="width: 100%; max-width: 280px; height: 14px; background: var(--surface-container); border-radius: 7px; position: relative; overflow: hidden; margin: 20px auto 10px auto;">
+          <!-- Left fill (Fear) -->
+          <div id="mmi-bar-fear" style="position: absolute; right: 50%; top: 0; bottom: 0; background: var(--loss); width: 0%; transition: width 1s ease-out;"></div>
+          <!-- Right fill (Greed) -->
+          <div id="mmi-bar-greed" style="position: absolute; left: 50%; top: 0; bottom: 0; background: var(--gain); width: 0%; transition: width 1s ease-out;"></div>
+          <!-- Center marker -->
+          <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; background: var(--surface); transform: translateX(-50%); border-radius: 2px;"></div>
+        </div>
         <div style="text-align:center;">
           <div class="mmi-score-val" id="mmi-score">—</div>
           <div class="mmi-label text-primary" id="mmi-label">—</div>

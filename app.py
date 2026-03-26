@@ -655,7 +655,10 @@ def api_portfolio_holdings():
         total_pnl = current_value - total_invested
         total_pnl_pct = (total_pnl / total_invested * 100) if total_invested else 0
 
-        health_score = calc.portfolio_health_score(enriched)
+        user_data = session.get('user_data', {})
+        user_risk_category = user_data.get('risk_category', 'Balanced')
+        health_result = calc.portfolio_health_score(enriched, user_risk_category)
+        health_score = health_result['score'] if isinstance(health_result, dict) else health_result
 
         # TLH opportunities — STCG holdings with a loss
         tlh = []

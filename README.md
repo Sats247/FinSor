@@ -8,7 +8,7 @@ DISCLAIMER - PLEASE DOWNLOAD THIS CSV FILE WHICH CONTAINS TRAINING DATA FOR OUR 
 
 ## 📺 Demo Video
 > [!NOTE]
-> *Developer Note: I'll add the demo video link here shortly once finalized.*
+> *DRIVE LINK FOR DEMO = https://drive.google.com/file/d/1Yc0w0pWf-8JzX0YDnPWlKHNUh7_w7ZNh/view?usp=sharing.*
 > 
 
 ---

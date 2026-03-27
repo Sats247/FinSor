@@ -2,6 +2,8 @@
 
 **FinSor** is an institutional-grade investment research platform reimagined for the Indian retail investor. Built for a hackathon MVP, it combines real-time market signals, deterministic financial engines, and advanced LLM-powered advisory to provide a professional terminal experience.
 
+DISCLAIMER - PLEASE DOWNLOAD THIS CSV FILE WHICH CONTAINS TRAINING DATA FOR OUR RECOMENDATION ENGINE ML MODEL, WHICH CAN BE UPLOADED FOR A WORKING DEMONSTRATION. - - 📈 **[Download trainingdataset.csv](./trainingdataset.csv)** — *Historical price dataset used to train the SIP allocation model.
+
 ---
 
 ## 📺 Demo Video
@@ -69,8 +71,9 @@ Visit `http://127.0.0.1:5000` in your browser.
 
 To test the platform's advanced features like Portfolio Import and ML Training, use these sample assets:
 
-- 📋 **[mockup_portfolio.csv](finsor/data/mockup_portfolio.csv)** — *Sample user holdings for testing P&L and Tax-Loss Harvesting.*
-- 📈 **[merged_etf_data.csv](finsor/merged_etf_data.csv)** — *Historical price dataset used to train the SIP allocation model.*
+- 📋 **[Download port.csv](./port.csv)** — *Sample 1 user holdings for testing P&L and Tax-Loss Harvesting.*
+- - 📋 **[Download port 2.csv](./port%202.csv)** — *Sample 2 user holdings for testing P&L and Tax-Loss Harvesting.*
+- 📈 **[Download trainingdataset.csv](./trainingdataset.csv)** — *Historical price dataset used to train the SIP allocation model.  USE THIS FOR A WORKING DEMONSTRATION OF OUR ML MODEL*
 
 ---
 

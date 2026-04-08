@@ -182,6 +182,57 @@ def lump_year_by_year(pv, annual_rate, years):
     return [round(future_value_lump(pv, annual_rate, y)) for y in range(1, years + 1)]
 
 
+def sip_with_crash_timing(pmt, annual_rate, years, crash_year, crash_pct, inflation=6.5, job_loss_months=0):
+    """
+    Year-by-year SIP simulation with precise crash timing.
+
+    Models SEQUENCE RISK: when a crash happens matters as much as how big it is.
+    - Early crash: reduced compounding base amplifies the long-term loss
+    - Late crash: compounding has already worked; terminal impact is smaller
+
+    Args:
+        pmt: monthly SIP amount (₹)
+        annual_rate: expected annual return (%)
+        years: investment horizon
+        crash_year: year in which the crash occurs (0 = no crash)
+        crash_pct: magnitude of crash (% drawdown, e.g. 30)
+        inflation: annual inflation rate (%) for real-value calculation
+        job_loss_months: months where SIP pauses (deducted from active months)
+
+    Returns:
+        list of {year, nominal, real} dicts
+    """
+    r_monthly = annual_rate / 12 / 100
+    series = []
+    corpus = 0.0
+    months_invested = 0
+
+    for year in range(1, years + 1):
+        # Invest 12 months in this year, unless job loss is still in effect
+        months_remaining_loss = max(0, job_loss_months - (year - 1) * 12)
+        active_months = max(0, 12 - min(12, months_remaining_loss))
+
+        for _ in range(active_months):
+            corpus += pmt
+            corpus *= (1 + r_monthly)
+        for _ in range(12 - active_months):
+            # Market still grows, but no new contribution
+            corpus *= (1 + r_monthly)
+
+        # Apply crash at this exact year
+        if crash_year > 0 and year == crash_year:
+            corpus *= (1 - crash_pct / 100)
+
+        real_val = corpus / ((1 + inflation / 100) ** year)
+        series.append({
+            'year': year,
+            'nominal': round(corpus),
+            'real': round(real_val),
+        })
+
+    return series
+
+
 def sensitivity_analysis(pmt, rate, months):
     """
     Returns normalised sensitivity weights for three factors:

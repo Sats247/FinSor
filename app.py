@@ -764,55 +764,149 @@ def api_simulator_calculate():
         nifty_rate = max(1, min(25, float(body.get('nifty_rate', 12.0))))
         inflation = max(0, min(15, float(body.get('inflation', 6.5))))
         job_loss_months = max(0, min(24, int(body.get('job_loss_months', 0))))
-        crash_pct = max(0, min(60, float(body.get('crash_pct', 0))))
+        crash_pct = max(0, min(60, float(body.get('crash_pct', 30))))
+        # crash_timing: 'early' (yr4), 'mid' (yr10), 'late' (yr16), 'none'
+        crash_timing = body.get('crash_timing', 'none')
 
-        year_list = list(range(1, years + 1))
+        # Map timing labels to specific crash year targets
+        CRASH_YEAR_MAP = {'early': 4, 'mid': 10, 'late': 16, 'none': 0}
+        crash_year_early = CRASH_YEAR_MAP['early']
+        crash_year_mid   = CRASH_YEAR_MAP['mid']
+        crash_year_late  = CRASH_YEAR_MAP['late']
 
-        def build_series(rate, months_sip, crash):
-            series = []
-            for y in year_list:
-                months = y * 12
-                active_months = max(0, months - job_loss_months)
-                fv = calc.future_value_sip(monthly_sip, rate, active_months)
-                if crash > 0 and y >= int(body.get('crash_at_year', 10)):
-                    fv *= (1 - crash / 100)
-                series.append({'year': y, 'nominal': round(fv),
-                               'real': round(fv / ((1 + inflation / 100) ** y))})
-            return series
+        # Clamp crash years to horizon
+        def clamp_crash_year(cy):
+            return min(cy, max(1, years - 1)) if cy > 0 else 0
 
-        fd_series = build_series(fd_rate, year_list, 0)
-        nifty_series = build_series(nifty_rate, year_list, 0)
-        worst = build_series(8, year_list, crash_pct)
-        base = build_series(12, year_list, crash_pct)
-        best = build_series(15, year_list, crash_pct)
+        # Build scenario series (no crash timing, just magnitude — for Worst/Expected/Optimistic cards)
+        def build_series(rate, crash_y=0):
+            return calc.sip_with_crash_timing(
+                monthly_sip, rate, years,
+                crash_year=crash_y,
+                crash_pct=crash_pct if crash_y > 0 else 0,
+                inflation=inflation,
+                job_loss_months=job_loss_months,
+            )
+
+        # Scenario bands (Conservative / Expected / Optimistic) — no crash applied here
+        worst = build_series(8)
+        base  = build_series(12)
+        best  = build_series(15)
+
+        # Crash timing curves (all use nifty_rate base, differ by WHEN crash hits)
+        crash_none  = build_series(nifty_rate, 0)
+        crash_early = build_series(nifty_rate, clamp_crash_year(crash_year_early))
+        crash_mid   = build_series(nifty_rate, clamp_crash_year(crash_year_mid))
+        crash_late  = build_series(nifty_rate, clamp_crash_year(crash_year_late))
+
+        fd_series = build_series(fd_rate)
+        nifty_series = crash_none  # alias — no crash base curve
 
         # Impact of job loss
-        no_loss_fv = calc.future_value_sip(monthly_sip, nifty_rate, years * 12)
+        no_loss_fv   = calc.future_value_sip(monthly_sip, nifty_rate, years * 12)
         with_loss_fv = calc.future_value_sip(monthly_sip, nifty_rate, max(0, years * 12 - job_loss_months))
         impact_job_loss = round(with_loss_fv - no_loss_fv)
 
-        final_fd = fd_series[-1]['nominal']
-        final_nifty = nifty_series[-1]['nominal']
-        real_final_nifty = nifty_series[-1]['real']
+        final_fd         = fd_series[-1]['nominal']
+        final_nifty      = crash_none[-1]['nominal']
+        real_final_nifty = crash_none[-1]['real']
+
+        # Inflation / purchasing power breakdown (based on Expected scenario)
+        base_final_nominal = base[-1]['nominal']
+        base_final_real    = base[-1]['real']
+        base_pp_loss       = base_final_real - base_final_nominal  # negative
+
+        # ── Peer comparison (approximation) ──────────────────────────────────
+        # Typical investor (same age / same horizon) — saves 60% of what user saves
+        peer_typical_corpus  = round(base_final_nominal * 0.60)
+        # National average investor — saves ~40% of user
+        peer_avg_corpus      = round(base_final_nominal * 0.38)
+        # Relative gap
+        peer_gap_abs         = round(base_final_nominal - peer_typical_corpus)
+        peer_gap_pct         = round((base_final_nominal / max(1, peer_typical_corpus) - 1) * 100)
+        # Rough percentile band: user is in top X% based on gap ratio
+        if peer_gap_pct > 80:
+            percentile_label = 'Top 10% trajectory'
+        elif peer_gap_pct > 50:
+            percentile_label = 'Top 20% trajectory'
+        elif peer_gap_pct > 30:
+            percentile_label = 'Top 30% trajectory'
+        elif peer_gap_pct > 10:
+            percentile_label = 'Top 40% trajectory'
+        else:
+            percentile_label = 'Above Average'
+
+        # ── Actionable suggestions ────────────────────────────────────────────
+        # Suggestion 1: SIP bump to reach top 20%
+        top20_target = peer_typical_corpus * 1.51  # ~top 20% threshold
+        sip_extra = None
+        if base_final_nominal < top20_target:
+            extra_corpus_needed = top20_target - base_final_nominal
+            # Each ₹1000 extra SIP ≈ scales linearly with base
+            sip_extra = max(500, round(extra_corpus_needed / (base_final_nominal / monthly_sip) / 1000) * 1000)
+
+        # Suggestion 2: extend horizon +3 years
+        extended = calc.sip_with_crash_timing(monthly_sip, 12, years + 3, 0, 0, inflation, job_loss_months)
+        horizon_gain = round(extended[-1]['nominal'] - base_final_nominal)
+
+        suggestions = []
+        if sip_extra:
+            suggestions.append(f'Increase SIP by ₹{sip_extra:,} → reach top 20% trajectory')
+        suggestions.append(f'Extend horizon by 3 years → +{_fmt_inr_short(horizon_gain)}')
+        if nifty_rate < 12:
+            suggestions.append('Switching to equity-heavy funds could add ~2% return annually')
 
         return jsonify({
             'success': True,
             'data': {
-                'fd_corpus': fd_series,
-                'nifty_corpus': nifty_series,
+                'fd_corpus':      fd_series,
+                'nifty_corpus':   nifty_series,
                 'scenario_worst': worst,
-                'scenario_base': base,
-                'scenario_best': best,
+                'scenario_base':  base,
+                'scenario_best':  best,
+                # Crash timing curves
+                'crash_none':     crash_none,
+                'crash_early':    crash_early,
+                'crash_mid':      crash_mid,
+                'crash_late':     crash_late,
+                # Impacts
                 'impact_job_loss': impact_job_loss,
                 'impact_crash': round(-final_nifty * crash_pct / 100) if crash_pct else 0,
-                'final_fd': final_fd,
-                'final_nifty': final_nifty,
-                'real_final_nifty': real_final_nifty,
+                'final_fd':          final_fd,
+                'final_nifty':       final_nifty,
+                'real_final_nifty':  real_final_nifty,
+                # Inflation emphasis
+                'inflation_breakdown': {
+                    'nominal': base_final_nominal,
+                    'real':    base_final_real,
+                    'pp_loss': base_pp_loss,
+                },
+                # Dynamic peer comparison
+                'peer': {
+                    'your_corpus':    base_final_nominal,
+                    'typical_corpus': peer_typical_corpus,
+                    'avg_corpus':     peer_avg_corpus,
+                    'gap_abs':        peer_gap_abs,
+                    'gap_pct':        peer_gap_pct,
+                    'percentile':     percentile_label,
+                },
+                # Actionable nudges
+                'suggestions': suggestions,
             }
         })
     except Exception as e:
         logger.error(f"simulator_calculate error: {e}")
         return error_json(str(e), 'UNKNOWN_ERROR')
+
+
+def _fmt_inr_short(v):
+    """Quick formatter for suggestion strings: 1.2L, 4.3Cr etc."""
+    v = abs(v)
+    if v >= 1e7:
+        return f'₹{v/1e7:.1f}Cr'
+    if v >= 1e5:
+        return f'₹{v/1e5:.2f}L'
+    return f'₹{round(v):,}'
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

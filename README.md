@@ -33,16 +33,7 @@ cd finsor
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
-We have included a **temporary Groq API Key** for the judges to ensure the AI Advisor ("Genie") and Smart Regime analysis work out-of-the-box. 
-
-Rename `.env.example` to `.env` in the `finsor/` directory:
-```bash
-mv .env.example .env
-```
-*(The key is already pre-filled in `.env.example` for your convenience.)*
-
-### 4. Direct Execution
+### 3. Direct Execution
 ```bash
 python app.py
 ```

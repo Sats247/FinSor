@@ -8,44 +8,44 @@ let activeCrashTiming = 'none';
 
 // ─── Semantic color palette ───────────────────────────────────────────────────
 const SIM_COLORS = {
-  base:       '#2563EB',   // Expected  → solid blue
-  worst:      '#DC2626',   // Conservative → solid red
-  best:       '#16A34A',   // Optimistic → solid green
+  base: '#2563EB',   // Expected  → solid blue
+  worst: '#DC2626',   // Conservative → solid red
+  best: '#16A34A',   // Optimistic → solid green
   crashEarly: '#DC2626',   // Dashed red
-  crashMid:   '#EA580C',   // Dashed orange
-  crashLate:  '#16A34A',   // Dashed olive-green (less impact)
-  crashNone:  '#2563EB',   // Solid blue (base without crash)
-  fd:         '#B45309',   // Amber
+  crashMid: '#EA580C',   // Dashed orange
+  crashLate: '#16A34A',   // Dashed olive-green (less impact)
+  crashNone: '#2563EB',   // Solid blue (base without crash)
+  fd: '#B45309',   // Amber
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getSliders() {
   return {
-    monthly_sip:      parseInt(document.getElementById('sip-slider').value),
-    years:            parseInt(document.getElementById('years-slider').value),
-    nifty_rate:       parseFloat(document.getElementById('rate-slider').value),
-    job_loss_months:  parseInt(document.getElementById('job-loss-slider').value),
-    crash_pct:        parseFloat(document.getElementById('crash-slider').value),
-    inflation:        parseFloat(document.getElementById('inflation-slider').value),
-    fd_rate:          parseFloat(document.getElementById('fd-slider')?.value) || 7.0,
-    crash_timing:     activeCrashTiming,
+    monthly_sip: parseInt(document.getElementById('sip-slider').value),
+    years: parseInt(document.getElementById('years-slider').value),
+    nifty_rate: parseFloat(document.getElementById('rate-slider').value),
+    job_loss_months: parseInt(document.getElementById('job-loss-slider').value),
+    crash_pct: parseFloat(document.getElementById('crash-slider').value),
+    inflation: parseFloat(document.getElementById('inflation-slider').value),
+    fd_rate: parseFloat(document.getElementById('fd-slider')?.value) || 7.0,
+    crash_timing: activeCrashTiming,
   };
 }
 
 function updateDisplays() {
-  const sip  = parseInt(document.getElementById('sip-slider').value);
-  const yr   = parseInt(document.getElementById('years-slider').value);
+  const sip = parseInt(document.getElementById('sip-slider').value);
+  const yr = parseInt(document.getElementById('years-slider').value);
   const rate = parseFloat(document.getElementById('rate-slider').value);
-  const jl   = parseInt(document.getElementById('job-loss-slider').value);
-  const cr   = parseFloat(document.getElementById('crash-slider').value);
-  const inf  = parseFloat(document.getElementById('inflation-slider').value);
-  const fd   = parseFloat(document.getElementById('fd-slider')?.value || 7.0);
+  const jl = parseInt(document.getElementById('job-loss-slider').value);
+  const cr = parseFloat(document.getElementById('crash-slider').value);
+  const inf = parseFloat(document.getElementById('inflation-slider').value);
+  const fd = parseFloat(document.getElementById('fd-slider')?.value || 7.0);
 
-  document.getElementById('sip-display').textContent  = '₹' + sip.toLocaleString('en-IN');
+  document.getElementById('sip-display').textContent = '₹' + sip.toLocaleString('en-IN');
   document.getElementById('years-display').textContent = yr + ' Year' + (yr > 1 ? 's' : '');
-  document.getElementById('rate-display').textContent  = rate.toFixed(1) + '%';
-  document.getElementById('job-loss-val').textContent  = jl + ' mo';
-  document.getElementById('crash-val').textContent     = cr + '%';
+  document.getElementById('rate-display').textContent = rate.toFixed(1) + '%';
+  document.getElementById('job-loss-val').textContent = jl + ' mo';
+  document.getElementById('crash-val').textContent = cr + '%';
   document.getElementById('inflation-val').textContent = inf.toFixed(1) + '%';
   const fdVal = document.getElementById('fd-val');
   if (fdVal) fdVal.textContent = fd.toFixed(2) + '%';
@@ -84,10 +84,10 @@ function setCrashTiming(timing) {
 
   const expEl = document.getElementById('crash-timing-explanation');
   const explanations = {
-    none:  '',
+    none: '',
     early: '<i data-lucide="trending-down" width="14" height="14" style="display:inline;vertical-align:-2px;margin-right:4px;"></i>Early crash (Year 3–5): Loss is amplified because the compounding base shrinks early. Your corpus has less time to recover — the most damaging scenario.',
-    mid:   '<i data-lucide="trending-down" width="14" height="14" style="display:inline;vertical-align:-2px;margin-right:4px;"></i>Mid crash (Year 8–12): Substantial but partially recoverable. You still have years for compounding to rebuild after the drawdown.',
-    late:  '<i data-lucide="check-circle" width="14" height="14" style="display:inline;vertical-align:-2px;margin-right:4px;"></i>Late crash (Year 15–18): Compounding has already done its work. The terminal corpus drops, but the relative impact is smallest. Timing mattered.',
+    mid: '<i data-lucide="trending-down" width="14" height="14" style="display:inline;vertical-align:-2px;margin-right:4px;"></i>Mid crash (Year 8–12): Substantial but partially recoverable. You still have years for compounding to rebuild after the drawdown.',
+    late: '<i data-lucide="check-circle" width="14" height="14" style="display:inline;vertical-align:-2px;margin-right:4px;"></i>Late crash (Year 15–18): Compounding has already done its work. The terminal corpus drops, but the relative impact is smallest. Timing mattered.',
   };
 
   if (timing === 'none' || !explanations[timing]) {
@@ -124,10 +124,10 @@ async function onSliderChange() {
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
 function renderSimulatorOutput(d, params) {
-  const years  = d.scenario_base.length;
+  const years = d.scenario_base.length;
   const labels = Array.from({ length: years }, (_, i) => 'Y' + (i + 1));
 
-  const nom  = arr => arr.map(s => s.nominal);
+  const nom = arr => arr.map(s => s.nominal);
   const real = arr => arr.map(s => s.real);
   const pick = arr => chartMode === 'real' ? real(arr) : nom(arr);
 
@@ -135,11 +135,11 @@ function renderSimulatorOutput(d, params) {
 
   // ── Scenario card values ──
   document.getElementById('worst-corpus').textContent = fmtINR(final('scenario_worst').nominal);
-  document.getElementById('worst-real').textContent   = 'Real: ' + fmtINR(final('scenario_worst').real);
-  document.getElementById('base-corpus').textContent  = fmtINR(final('scenario_base').nominal);
-  document.getElementById('base-real').textContent    = 'Real: ' + fmtINR(final('scenario_base').real);
-  document.getElementById('best-corpus').textContent  = fmtINR(final('scenario_best').nominal);
-  document.getElementById('best-real').textContent    = 'Real: ' + fmtINR(final('scenario_best').real);
+  document.getElementById('worst-real').textContent = 'Real: ' + fmtINR(final('scenario_worst').real);
+  document.getElementById('base-corpus').textContent = fmtINR(final('scenario_base').nominal);
+  document.getElementById('base-real').textContent = 'Real: ' + fmtINR(final('scenario_base').real);
+  document.getElementById('best-corpus').textContent = fmtINR(final('scenario_best').nominal);
+  document.getElementById('best-real').textContent = 'Real: ' + fmtINR(final('scenario_best').real);
 
   // Purchasing power loss on Expected card
   const ppLossEl = document.getElementById('base-pp-loss');
@@ -152,13 +152,13 @@ function renderSimulatorOutput(d, params) {
   if (d.inflation_breakdown) {
     const ib = d.inflation_breakdown;
     setText('inf-nominal', fmtINR(ib.nominal));
-    setText('inf-real',    fmtINR(ib.real));
-    setText('inf-loss',    '−' + fmtINR(Math.abs(ib.pp_loss)));
+    setText('inf-real', fmtINR(ib.real));
+    setText('inf-loss', '−' + fmtINR(Math.abs(ib.pp_loss)));
   }
 
   // ── Impact row ──
   document.getElementById('impact-job-loss').textContent = d.impact_job_loss ? fmtINR(d.impact_job_loss) : '₹0';
-  document.getElementById('impact-crash').textContent    = d.impact_crash ? fmtINR(d.impact_crash) : '₹0';
+  document.getElementById('impact-crash').textContent = d.impact_crash ? fmtINR(d.impact_crash) : '₹0';
 
   const jl = params.job_loss_months;
   const cr = params.crash_pct;
@@ -176,20 +176,20 @@ function renderSimulatorOutput(d, params) {
 
   // ── Slider explanations ──
   const sip = params.monthly_sip;
-  const yr  = params.years;
+  const yr = params.years;
   const fdRate = params.fd_rate || 7.0;
-  
-  setText('sip-explanation',  `₹${sip.toLocaleString('en-IN')}/mo × ${yr}yr = ₹${fmtINR(sip * yr * 12)} invested, ₹${fmtINR(final('scenario_base').nominal)} projected.`);
+
+  setText('sip-explanation', `₹${sip.toLocaleString('en-IN')}/mo × ${yr}yr = ${fmtINR(sip * yr * 12)} invested, ${fmtINR(final('scenario_base').nominal)} projected.`);
   const extraPerYear = Math.max(0, (final('scenario_base').nominal - sip * yr * 12) / Math.max(1, yr - 10));
-  setText('years-explanation', yr <= 10 ? 'Compounding needs time. Extending by 5 more years can nearly double your corpus.' : `Each extra year beyond 10 adds ~₹${fmtINR(extraPerYear)} to your corpus due to compounding.`);
-  setText('rate-explanation',  `1% higher return on this SIP = +₹${fmtINR(Math.round((final('scenario_best').nominal - final('scenario_base').nominal) / 3))} over ${yr} years.`);
-  setText('fd-explanation', `FD at ${fdRate.toFixed(2)}% gives ₹${fmtINR(d.final_fd)} vs equity ₹${fmtINR(final('scenario_base').nominal)} over ${yr} years.`);
+  setText('years-explanation', yr <= 10 ? 'Compounding needs time. Extending by 5 more years can nearly double your corpus.' : `Each extra year beyond 10 adds ~${fmtINR(extraPerYear)} to your corpus due to compounding.`);
+  setText('rate-explanation', `1% higher return on this SIP = +${fmtINR(Math.round((final('scenario_best').nominal - final('scenario_base').nominal) / 3))} over ${yr} years.`);
+  setText('fd-explanation', `FD at ${fdRate.toFixed(2)}% gives ${fmtINR(d.final_fd)} vs equity ${fmtINR(final('scenario_base').nominal)} over ${yr} years.`);
 
   // ── Scenario Controls Slider explanations ──
-  setText('jl-slider-explanation', jl > 0 ? `${jl} months missed = ₹${fmtINR(jl * params.monthly_sip)} not invested, costing ₹${fmtINR(Math.abs(d.impact_job_loss))} at maturity.` : 'Simulate the hidden penalty of skipping SIPs.');
-  setText('cr-slider-explanation', cr > 0 ? `A ${cr}% drop reduces your final corpus by ₹${fmtINR(Math.abs(d.impact_crash))}.` : 'Explore the terminal damage of a sudden market drop.');
+  setText('jl-slider-explanation', jl > 0 ? `${jl} months missed = ${fmtINR(jl * params.monthly_sip)} not invested, costing ${fmtINR(Math.abs(d.impact_job_loss))} at maturity.` : 'Simulate the hidden penalty of skipping SIPs.');
+  setText('cr-slider-explanation', cr > 0 ? `A ${cr}% drop reduces your final corpus by ${fmtINR(Math.abs(d.impact_crash))}.` : 'Explore the terminal damage of a sudden market drop.');
   if (d.inflation_breakdown) {
-    setText('inf-slider-explanation', `At ${params.inflation}%, your ₹${fmtINR(d.inflation_breakdown.nominal)} buys only ₹${fmtINR(d.inflation_breakdown.real)} in today's money.`);
+    setText('inf-slider-explanation', `At ${params.inflation}%, your ${fmtINR(d.inflation_breakdown.nominal)} buys only ${fmtINR(d.inflation_breakdown.real)} in today's money.`);
   }
 
   // ── Actionable suggestions ──
@@ -214,7 +214,7 @@ function renderChart(d, labels, params) {
   if (!ctx || !window.Chart) return;
   if (simChart) simChart.destroy();
 
-  const nom  = arr => arr.map(s => s.nominal);
+  const nom = arr => arr.map(s => s.nominal);
   const real = arr => arr.map(s => s.real);
   const pick = (arr, solid = true) => chartMode === 'real' ? real(arr) : nom(arr);
 
@@ -258,10 +258,10 @@ function renderChart(d, labels, params) {
       },
     ];
     legendItems = [
-      { label: 'No Crash',           color: SIM_COLORS.crashNone,  dashed: false },
-      { label: 'Early Crash (Yr 3)', color: SIM_COLORS.crashEarly, dashed: true  },
-      { label: 'Mid Crash (Yr 8)',   color: SIM_COLORS.crashMid,   dashed: true  },
-      { label: 'Late Crash (Yr 15)', color: SIM_COLORS.crashLate,  dashed: true  },
+      { label: 'No Crash', color: SIM_COLORS.crashNone, dashed: false },
+      { label: 'Early Crash (Yr 3)', color: SIM_COLORS.crashEarly, dashed: true },
+      { label: 'Mid Crash (Yr 8)', color: SIM_COLORS.crashMid, dashed: true },
+      { label: 'Late Crash (Yr 15)', color: SIM_COLORS.crashLate, dashed: true },
     ];
   } else {
     // Nominal / Real / Comparison modes — show Conservative / Expected / Optimistic
@@ -293,9 +293,9 @@ function renderChart(d, labels, params) {
       },
     ];
     legendItems = [
-      { label: 'Conservative (8%)',  color: SIM_COLORS.worst, dashed: isDotted },
-      { label: 'Expected (12%)',     color: SIM_COLORS.base,  dashed: isDotted },
-      { label: 'Optimistic (15%)',   color: SIM_COLORS.best,  dashed: isDotted },
+      { label: 'Conservative (8%)', color: SIM_COLORS.worst, dashed: isDotted },
+      { label: 'Expected (12%)', color: SIM_COLORS.base, dashed: isDotted },
+      { label: 'Optimistic (15%)', color: SIM_COLORS.best, dashed: isDotted },
     ];
     if (chartMode === 'comparison') {
       datasets.push({
@@ -395,11 +395,11 @@ function buildLabels(n) {
 
 // ─── Reset ────────────────────────────────────────────────────────────────────
 function resetSliders() {
-  document.getElementById('sip-slider').value       = 10000;
-  document.getElementById('years-slider').value     = 20;
-  document.getElementById('rate-slider').value      = 12;
-  document.getElementById('job-loss-slider').value  = 0;
-  document.getElementById('crash-slider').value     = 30;
+  document.getElementById('sip-slider').value = 10000;
+  document.getElementById('years-slider').value = 20;
+  document.getElementById('rate-slider').value = 12;
+  document.getElementById('job-loss-slider').value = 0;
+  document.getElementById('crash-slider').value = 30;
   document.getElementById('inflation-slider').value = 6.5;
   setCrashTiming('none');
   activeCrashTiming = 'none';
@@ -412,7 +412,7 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 function setTextSafe(id, text) {
-  try { setText(id, text); } catch (_) {}
+  try { setText(id, text); } catch (_) { }
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
